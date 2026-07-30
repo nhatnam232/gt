@@ -1,35 +1,25 @@
 #!/usr/bin/env tsx
 /**
- * ETL entry point.
- *
- * Usage:
- *   npm run etl:all          - full pipeline
- *   npm run etl:brands       - crawl official manufacturer sites
- *   npm run etl:wikidata     - import from Wikidata SPARQL
- *   npm run etl:retailers    - import from retailer OpenGraph / feeds
- *   npm run etl:prices       - refresh price offers only
- *   npm run etl:normalize    - re-normalize already-fetched raw records
- *   npm run etl:index        - rebuild search index from DB
- *   npm run etl:rankings     - recompute ranking tables
+ * GuitarTribe ETL CLI
+ * Usage: npm run etl [command]
+ * Commands: all | brands | wikidata | retailers | prices | normalize | merge | index | rankings
  */
 
-import { prisma } from "../src/lib/prisma"
-import { crawlBrands } from "./adapters/brand-official"
-import { crawlWikidata } from "./adapters/wikidata"
-import { crawlRetailers } from "./adapters/retailers"
-import { refreshPrices } from "./adapters/prices"
-import { normalizeAll } from "./normalizer"
-import { mergeAll } from "./merger"
-import { reindexSearch } from "../src/server/services/index.service"
-import { rankingService } from "../src/server/services/ranking.service"
+import { crawlBrands } from "./crawlers/brand-official"
+import { crawlWikidata } from "./crawlers/wikidata"
+import { crawlRetailers } from "./crawlers/retailers"
+import { crawlPrices } from "./crawlers/prices"
+import { normalizeGuitars } from "./transformers/normalizer"
+import { mergeGuitars } from "./transformers/merger"
+import { indexAllGuitars } from "./services/index.service"
+import { buildRankings } from "./services/ranking.service"
 
 const command = process.argv[2] ?? "all"
 
-async function run() {
-  console.log(`[ETL] Starting: ${command}`)
-  const started = Date.now()
-
-  switch (command) {
+async function run(cmd: string) {
+  console.log(`\n[ETL] Running: ${cmd}`)
+  const t = Date.now()
+  switch (cmd) {
     case "brands":
       await crawlBrands()
       break
@@ -40,39 +30,39 @@ async function run() {
       await crawlRetailers()
       break
     case "prices":
-      await refreshPrices()
+      await crawlPrices()
       break
     case "normalize":
-      await normalizeAll()
+      await normalizeGuitars()
+      break
+    case "merge":
+      await mergeGuitars()
       break
     case "index":
-      await reindexSearch()
+      await indexAllGuitars()
       break
     case "rankings":
-      await rankingService.rebuildAll()
+      await buildRankings()
       break
     case "all":
       await crawlBrands()
       await crawlWikidata()
       await crawlRetailers()
-      await normalizeAll()
-      await mergeAll()
-      await refreshPrices()
-      await reindexSearch()
-      await rankingService.rebuildAll()
+      await crawlPrices()
+      await normalizeGuitars()
+      await mergeGuitars()
+      await indexAllGuitars()
+      await buildRankings()
       break
     default:
-      console.error(`Unknown command: ${command}`)
+      console.error(`Unknown command: ${cmd}`)
+      console.error("Available: all | brands | wikidata | retailers | prices | normalize | merge | index | rankings")
       process.exit(1)
   }
-
-  const elapsed = ((Date.now() - started) / 1000).toFixed(1)
-  console.log(`[ETL] Done in ${elapsed}s`)
-  await prisma.$disconnect()
+  console.log(`[ETL] ${cmd} completed in ${((Date.now() - t) / 1000).toFixed(1)}s`)
 }
 
-run().catch(async (error) => {
-  console.error("[ETL] Fatal error:", error)
-  await prisma.$disconnect()
+run(command).catch((err) => {
+  console.error("[ETL] Fatal error:", err)
   process.exit(1)
 })

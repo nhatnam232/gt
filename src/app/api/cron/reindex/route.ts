@@ -1,16 +1,18 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { reindexSearch } from "@/server/services/index.service"
-import { rankingService } from "@/server/services/ranking.service"
+import { NextRequest, NextResponse } from "next/server"
+import { indexAllGuitars } from "../../../../../etl/services/index.service"
+import { buildRankings } from "../../../../../etl/services/ranking.service"
 
-export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
+export const maxDuration = 300
 
-export async function GET(request: NextRequest) {
-  if (request.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
+export async function GET(req: NextRequest) {
+  const secret = req.headers.get("authorization")?.replace("Bearer ", "")
+  if (secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const indexed = await reindexSearch()
-  await rankingService.rebuildAll()
-  return NextResponse.json({ ok: true, indexed })
+  await indexAllGuitars()
+  await buildRankings()
+
+  return NextResponse.json({ ok: true })
 }

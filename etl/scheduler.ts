@@ -1,74 +1,74 @@
 /**
- * ETL Scheduler - dispatches QUEUED CrawlJob rows.
- * Called by Vercel cron routes or a background worker.
+ * ETL Scheduler — called by /api/cron/crawl to process one QUEUED CrawlJob.
+ * Designed to be triggered by Vercel cron (max 10s on Hobby, 300s on Pro).
  */
-import { prisma } from "../src/lib/prisma"
-import { crawlBrands } from "./adapters/brand-official"
-import { crawlWikidata } from "./adapters/wikidata"
-import { crawlRetailers } from "./adapters/retailers"
-import { refreshPrices } from "./adapters/prices"
-import { normalizeAll } from "./normalizer"
-import { mergeAll } from "./merger"
-import { reindexSearch } from "../src/server/services/index.service"
-import { rankingService } from "../src/server/services/ranking.service"
 
-type Adapter = () => Promise<unknown>
+import { prisma } from "@/lib/prisma"
 
-const ADAPTERS: Record<string, Adapter> = {
-  brands: crawlBrands,
-  wikidata: crawlWikidata,
-  retailers: crawlRetailers,
-  prices: refreshPrices,
-  normalize: normalizeAll,
-  merge: mergeAll,
-  index: reindexSearch,
-  rankings: () => rankingService.rebuildAll(),
-  all: async () => {
-    await crawlBrands()
-    await crawlWikidata()
-    await crawlRetailers()
-    await normalizeAll()
-    await mergeAll()
-    await refreshPrices()
-    await reindexSearch()
-    await rankingService.rebuildAll()
-  },
-}
-
-export async function runNextJob(): Promise<{ ran: string | null }> {
+export async function runNextJob(): Promise<{ ran: boolean; target?: string; error?: string }> {
+  // Claim the oldest queued job atomically
   const job = await prisma.crawlJob.findFirst({
     where: { status: "QUEUED" },
     orderBy: { createdAt: "asc" },
   })
-  if (!job) return { ran: null }
 
-  const claimed = await prisma.crawlJob.updateMany({
-    where: { id: job.id, status: "QUEUED" },
+  if (!job) return { ran: false }
+
+  await prisma.crawlJob.update({
+    where: { id: job.id },
     data: { status: "RUNNING", startedAt: new Date() },
   })
-  if (claimed.count === 0) return { ran: null }
 
-  const adapter = ADAPTERS[job.target]
-  if (!adapter) {
-    await prisma.crawlJob.update({
-      where: { id: job.id },
-      data: { status: "FAILED", error: `Unknown target: ${job.target}`, finishedAt: new Date() },
-    })
-    return { ran: job.target }
-  }
+  let itemsNew = 0
+  let error: string | undefined
 
   try {
-    await adapter()
+    switch (job.target) {
+      case "brands": {
+        const { crawlBrands } = await import("./crawlers/brand-official")
+        await crawlBrands()
+        break
+      }
+      case "wikidata": {
+        const { crawlWikidata } = await import("./crawlers/wikidata")
+        await crawlWikidata()
+        break
+      }
+      case "retailers": {
+        const { crawlRetailers } = await import("./crawlers/retailers")
+        await crawlRetailers()
+        break
+      }
+      case "prices": {
+        const { crawlPrices } = await import("./crawlers/prices")
+        await crawlPrices()
+        break
+      }
+      case "index": {
+        const { indexAllGuitars } = await import("./services/index.service")
+        await indexAllGuitars()
+        break
+      }
+      case "rankings": {
+        const { buildRankings } = await import("./services/ranking.service")
+        await buildRankings()
+        break
+      }
+      default:
+        throw new Error(`Unknown ETL target: ${job.target}`)
+    }
+
     await prisma.crawlJob.update({
       where: { id: job.id },
-      data: { status: "SUCCESS", finishedAt: new Date() },
+      data: { status: "SUCCESS", finishedAt: new Date(), itemsNew },
     })
   } catch (err) {
+    error = err instanceof Error ? err.message : String(err)
     await prisma.crawlJob.update({
       where: { id: job.id },
-      data: { status: "FAILED", error: String(err), finishedAt: new Date() },
+      data: { status: "FAILED", finishedAt: new Date(), error },
     })
   }
 
-  return { ran: job.target }
+  return { ran: true, target: job.target, error }
 }
