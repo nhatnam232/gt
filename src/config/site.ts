@@ -1,5 +1,6 @@
 export const siteConfig = {
   name: "GuitarTribe",
+  tagline: "Compare guitars, spec by spec",
   description:
     "Independent guitar comparison engine. Compare every acoustic, electric, bass, classical guitar and more — spec by spec.",
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://guitartribe.io",
