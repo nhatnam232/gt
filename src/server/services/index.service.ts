@@ -24,8 +24,8 @@ export async function reindexSearch(): Promise<number> {
       orderBy: { id: "asc" },
       include: {
         brand: { select: { slug: true, name: true } },
-        series: { select: { name: true } },
-        images: { orderBy: { position: "asc" }, take: 1, select: { url: true } },
+        images: { orderBy: { order: "asc" }, take: 1, select: { url: true } },
+        prices: { orderBy: { price: "asc" }, take: 1, select: { price: true } },
       },
     })
     if (rows.length === 0) break
@@ -36,7 +36,8 @@ export async function reindexSearch(): Promise<number> {
       name: row.name,
       brand: row.brand.name,
       brandSlug: row.brand.slug,
-      series: row.series?.name ?? null,
+      // `series` is a plain text column on Guitar, not a relation.
+      series: row.series ?? null,
       model: row.model,
       category: row.category,
       categorySlug: categoryMeta(row.category).slug,
@@ -55,12 +56,13 @@ export async function reindexSearch(): Promise<number> {
       strings: row.strings,
       scaleLengthIn: decimalToNumber(row.scaleLengthIn),
       weightKg: decimalToNumber(row.weightKg),
-      price: decimalToNumber(row.currentBest),
+      // Best live retailer price, falling back to MSRP when nothing is crawled.
+      price: decimalToNumber(row.prices[0]?.price ?? row.msrp),
       msrp: decimalToNumber(row.msrp),
       expertScore: decimalToNumber(row.expertScore),
       userScore: decimalToNumber(row.userScore),
       valueScore: decimalToNumber(row.valueScore),
-      popularity: row.popularity,
+      popularity: row.popularityRank,
       availability: row.availability,
       handedness: row.handedness,
       cutaway: row.cutaway ?? false,
