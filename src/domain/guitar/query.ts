@@ -4,13 +4,12 @@ import { PAGE_SIZE } from "@/config/site"
 import type { GuitarQuery, SortKey } from "./types"
 import { SORT_OPTIONS } from "./types"
 
+// Must stay in sync with `enum Availability` in prisma/schema.prisma.
 const AVAILABILITIES: Availability[] = [
   "IN_STOCK",
   "OUT_OF_STOCK",
-  "PREORDER",
-  "BACKORDER",
   "DISCONTINUED",
-  "UNKNOWN",
+  "PREORDER",
 ]
 
 type Params = Record<string, string | string[] | undefined>
