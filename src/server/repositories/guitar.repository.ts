@@ -11,15 +11,20 @@ const GUITAR_INCLUDE = {
 
 export type GuitarListItem = Prisma.GuitarGetPayload<{ include: typeof GUITAR_INCLUDE }>
 
-function buildWhere(q: GuitarQuery): Prisma.GuitarWhereInput {
+export function buildWhere(q: GuitarQuery): Prisma.GuitarWhereInput {
   const where: Prisma.GuitarWhereInput = { isPublished: true }
 
   if (q.category) where.category = q.category.toUpperCase() as Category
   if (q.brandSlug) where.brand = { slug: q.brandSlug }
   if (q.handedness) where.handedness = q.handedness.toUpperCase() as Handedness
-  if (q.availability) where.availability = q.availability.toUpperCase() as Availability
-  if (q.frets) where.frets = q.frets
-  if (q.strings) where.strings = q.strings
+
+  if (q.availability?.length) {
+    where.availability = { in: q.availability.map((a) => a.toUpperCase() as Availability) }
+  }
+  if (q.frets?.length) where.frets = { in: q.frets }
+  if (q.strings?.length) where.strings = { in: q.strings }
+  if (q.years?.length) where.year = { in: q.years }
+  if (q.brands?.length) where.brand = { slug: { in: q.brands } }
 
   if (q.minPrice || q.maxPrice) {
     where.msrp = {
@@ -45,6 +50,15 @@ function buildOrderBy(sort?: string): Prisma.GuitarOrderByWithRelationInput[] {
   return Object.entries(option.orderBy).map(([k, v]) => ({ [k]: v })) as Prisma.GuitarOrderByWithRelationInput[]
 }
 
+/** Maps a friendly "top by" key onto a concrete Prisma ordering. */
+const TOP_BY_ORDER: Record<string, Prisma.GuitarOrderByWithRelationInput> = {
+  popularity: { popularityRank: "asc" },
+  expert: { expertScore: "desc" },
+  rating: { userScore: "desc" },
+  value: { valueScore: "desc" },
+  newest: { year: "desc" },
+}
+
 export const guitarRepository = {
   async list(query: GuitarQuery) {
     const { page = 1, perPage = 24 } = query
@@ -62,7 +76,8 @@ export const guitarRepository = {
       prisma.guitar.count({ where }),
     ])
 
-    return { items, total, page, perPage, totalPages: Math.ceil(total / perPage) }
+    const totalPages = Math.ceil(total / perPage)
+    return { items, total, page, perPage, totalPages, hasMore: page < totalPages }
   },
 
   async findBySlug(slug: string) {
@@ -86,6 +101,21 @@ export const guitarRepository = {
           orderBy: { position: "asc" },
         },
       },
+    })
+  },
+
+  /** Alias of `findBySlug`, used by the comparison service. */
+  async detail(slug: string) {
+    return guitarRepository.findBySlug(slug)
+  },
+
+  /** Returns the highest-ranked guitars for a given ordering key. */
+  async topBy(key: string, take = 8) {
+    return prisma.guitar.findMany({
+      where: { isPublished: true },
+      orderBy: TOP_BY_ORDER[key] ?? TOP_BY_ORDER.popularity,
+      take,
+      include: GUITAR_INCLUDE,
     })
   },
 

@@ -1,3 +1,5 @@
+import type { Brand, Guitar, GuitarImage, PricePoint, Source, UserReview } from "@prisma/client"
+
 export type SortOption = {
   value: string
   label: string
@@ -6,8 +8,8 @@ export type SortOption = {
 
 export const SORT_OPTIONS: SortOption[] = [
   { value: "relevance", label: "Relevance", orderBy: { popularityRank: "asc" } },
-  { value: "price-asc", label: "Price ↑", orderBy: { msrp: "asc" } },
-  { value: "price-desc", label: "Price ↓", orderBy: { msrp: "desc" } },
+  { value: "price-asc", label: "Price \u2191", orderBy: { msrp: "asc" } },
+  { value: "price-desc", label: "Price \u2193", orderBy: { msrp: "desc" } },
   { value: "score-desc", label: "Expert score", orderBy: { expertScore: "desc" } },
   { value: "rating-desc", label: "User rating", orderBy: { userScore: "desc" } },
   { value: "value-desc", label: "Best value", orderBy: { valueScore: "desc" } },
@@ -23,6 +25,8 @@ export type Paginated<T> = {
   page: number
   perPage: number
   totalPages: number
+  /** True when there is at least one more page after the current one. */
+  hasMore?: boolean
 }
 
 export type GuitarQuery = {
@@ -67,4 +71,60 @@ export type GuitarQuery = {
   frets: number[]
   strings: number[]
   years: number[]
+}
+
+/**
+ * Loose shape accepted by callers that only care about a couple of filters.
+ * Run it through `normalizeGuitarQuery` to obtain a complete `GuitarQuery`.
+ */
+export type GuitarQueryInput = Partial<GuitarQuery>
+
+export const EMPTY_GUITAR_QUERY: GuitarQuery = {
+  page: 1,
+  perPage: 24,
+  brands: [],
+  series: [],
+  bodyShapes: [],
+  topWoods: [],
+  backWoods: [],
+  neckWoods: [],
+  fingerboards: [],
+  pickups: [],
+  finishes: [],
+  colors: [],
+  countries: [],
+  availability: [],
+  frets: [],
+  strings: [],
+  years: [],
+}
+
+/** Fill in every required field so partial inputs can be used as a full query. */
+export function normalizeGuitarQuery(input: GuitarQueryInput = {}): GuitarQuery {
+  return {
+    ...EMPTY_GUITAR_QUERY,
+    ...input,
+    page: input.page ?? EMPTY_GUITAR_QUERY.page,
+    perPage: input.perPage ?? EMPTY_GUITAR_QUERY.perPage,
+  }
+}
+
+/** A single retailer price offer, optionally joined with its source. */
+export type PriceOfferDto = PricePoint & {
+  source?: Pick<Source, "name" | "baseUrl"> | null
+}
+
+/** Minimal guitar payload used by cards, grids and rails. */
+export type GuitarCardDto = Guitar & {
+  brand: Pick<Brand, "name" | "slug">
+  images: GuitarImage[]
+  prices: PricePoint[]
+}
+
+/** Full guitar payload used by the detail page, spec table and comparisons. */
+export type GuitarDetailDto = Guitar & {
+  brand: Brand
+  images: GuitarImage[]
+  prices: PriceOfferDto[]
+  reviews?: UserReview[]
 }
