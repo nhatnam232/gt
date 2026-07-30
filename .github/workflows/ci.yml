@@ -43,17 +43,16 @@ jobs:
       DATABASE_URL: postgresql://guitar:guitar@localhost:5432/guitartribe
       DIRECT_URL: postgresql://guitar:guitar@localhost:5432/guitartribe
       NEXT_PUBLIC_SITE_URL: http://localhost:3000
-      BETTER_AUTH_SECRET: ci-secret-32-chars-minimum-length
+      BETTER_AUTH_SECRET: ci-secret-32-chars-minimum-00000
       BETTER_AUTH_URL: http://localhost:3000
       UPSTASH_REDIS_REST_URL: http://localhost:8079
       UPSTASH_REDIS_REST_TOKEN: local_token
       MEILISEARCH_HOST: http://localhost:7700
       MEILISEARCH_MASTER_KEY: masterKeyChangeMe
       CLOUDINARY_CLOUD_NAME: demo
-      CLOUDINARY_API_KEY: 000000000000000
+      CLOUDINARY_API_KEY: "000000000000000"
       CLOUDINARY_API_SECRET: ci-secret
       CRON_SECRET: ci-cron-secret
-      SKIP_ENV_VALIDATION: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -71,8 +70,12 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
-      - name: Deploy
-        run: npx vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
