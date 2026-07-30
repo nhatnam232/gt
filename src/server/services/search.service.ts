@@ -75,7 +75,8 @@ export const searchService = {
             category: doc.category,
             categorySlug: doc.categorySlug,
             price: doc.price,
-            currency: doc.currency ?? "USD",
+            // Documents are indexed with normalised USD pricing.
+            currency: "USD",
             expertScore: doc.expertScore,
             image: doc.image,
             highlighted: doc._formatted?.name ?? escapeHtml(doc.name),
