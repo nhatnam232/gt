@@ -1,3 +1,12 @@
+export const REVALIDATE = {
+  home: 900,
+  listing: 600,
+  detail: 1800,
+  ranking: 3600,
+  article: 1800,
+  brand: 21600,
+} as const
+
 export const siteConfig = {
   name: "GuitarTribe",
   tagline: "Compare guitars, spec by spec",
@@ -6,14 +15,7 @@ export const siteConfig = {
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://guitartribe.io",
   locale: "en_US",
   twitter: "@guitartribe",
-  REVALIDATE: {
-    home: 900,
-    listing: 600,
-    detail: 1800,
-    ranking: 3600,
-    article: 1800,
-    brand: 21600,
-  } as const,
+  REVALIDATE,
 }
 
 export const MAX_COMPARE = 5
