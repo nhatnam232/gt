@@ -1,10 +1,9 @@
 "use client"
 
 import { useEffect } from "react"
-import { RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-export default function GlobalError({
+export default function Error({
   error,
   reset,
 }: {
@@ -12,24 +11,15 @@ export default function GlobalError({
   reset: () => void
 }) {
   useEffect(() => {
-    // Surfaced in Vercel logs; no user data is included.
-    console.error("Route error", { digest: error.digest, message: error.message })
+    console.error(error)
   }, [error])
 
   return (
-    <div className="container-page flex min-h-[70vh] flex-col items-center justify-center py-24 text-center">
-      <h1 className="text-3xl sm:text-4xl">Something went wrong</h1>
-      <p className="mt-3 max-w-md text-muted-foreground">
-        The page failed to load. This is usually temporary - retrying normally fixes it.
-      </p>
-      {error.digest ? (
-        <p className="mt-2 font-[family-name:var(--font-mono)] text-xs text-muted-foreground">
-          Reference: {error.digest}
-        </p>
-      ) : null}
-      <Button onClick={reset} className="mt-8 gap-2">
-        <RotateCcw className="size-4" /> Try again
-      </Button>
+    <div className="container-page section flex min-h-[50vh] flex-col items-center justify-center text-center">
+      <p className="eyebrow mb-3">Something went wrong</p>
+      <h2 className="text-2xl font-bold">An unexpected error occurred</h2>
+      <p className="mt-3 text-muted-foreground">{error.message}</p>
+      <Button className="mt-6" onClick={reset}>Try again</Button>
     </div>
   )
 }
