@@ -2,9 +2,9 @@ import { rankingRepository } from "@/server/repositories/ranking.repository"
 import { GuitarCard } from "@/components/guitar-card"
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
-import { siteConfig } from "@/config/site"
 
-export const revalidate = siteConfig.REVALIDATE.ranking
+// Next.js requires a literal number (siteConfig.REVALIDATE.ranking = 3600)
+export const revalidate = 3600
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
