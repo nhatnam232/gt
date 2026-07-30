@@ -26,7 +26,10 @@ export type FacetSet = {
   scaleRange: { min: number; max: number }
 }
 
+// `series` is a plain text column on Guitar (there is no Series model), so it is
+// faceted exactly like the other scalar attributes.
 const SCALAR_COLUMNS = {
+  series: "series",
   bodyShapes: "bodyShape",
   topWoods: "topWood",
   backWoods: "backWood",
@@ -74,7 +77,6 @@ export const facetRepository = {
 
     const [
       brandRows,
-      seriesRows,
       availabilityRows,
       fretRows,
       stringRows,
@@ -88,13 +90,6 @@ export const facetRepository = {
         _count: { _all: true },
         orderBy: { _count: { brandId: "desc" } },
         take: 80,
-      }),
-      prisma.guitar.groupBy({
-        by: ["seriesId"],
-        where: buildWhere({ ...query, series: [] }),
-        _count: { _all: true },
-        orderBy: { _count: { seriesId: "desc" } },
-        take: 60,
       }),
       prisma.guitar.groupBy({
         by: ["availability"],
@@ -122,8 +117,8 @@ export const facetRepository = {
       }),
       prisma.guitar.aggregate({
         where: buildWhere({ ...query, minPrice: undefined, maxPrice: undefined }),
-        _min: { currentBest: true, weightKg: true, scaleLengthIn: true },
-        _max: { currentBest: true, weightKg: true, scaleLengthIn: true },
+        _min: { msrp: true, weightKg: true, scaleLengthIn: true },
+        _max: { msrp: true, weightKg: true, scaleLengthIn: true },
       }),
       ...scalarEntries.map(([key, column]) =>
         groupScalar(column, buildWhere({ ...query, [key]: [] } as GuitarQuery)),
@@ -131,19 +126,11 @@ export const facetRepository = {
     ])
 
     const brandIds = brandRows.map((r) => r.brandId)
-    const seriesIds = seriesRows.map((r) => r.seriesId).filter((id): id is string => Boolean(id))
-    const [brands, series] = await Promise.all([
-      prisma.brand.findMany({
-        where: { id: { in: brandIds } },
-        select: { id: true, slug: true, name: true },
-      }),
-      prisma.series.findMany({
-        where: { id: { in: seriesIds } },
-        select: { id: true, slug: true, name: true },
-      }),
-    ])
+    const brands = await prisma.brand.findMany({
+      where: { id: { in: brandIds } },
+      select: { id: true, slug: true, name: true },
+    })
     const brandById = new Map(brands.map((b) => [b.id, b]))
-    const seriesById = new Map(series.map((s) => [s.id, s]))
 
     const scalars = Object.fromEntries(
       scalarEntries.map(([key], i) => [key, scalarResults[i] ?? []]),
@@ -155,6 +142,7 @@ export const facetRepository = {
     }
 
     return {
+      ...scalars,
       brands: brandRows
         .map((row) => {
           const brand = brandById.get(row.brandId)
@@ -164,13 +152,6 @@ export const facetRepository = {
         })
         .filter((b): b is FacetBucket => Boolean(b))
         .sort((a, b) => b.count - a.count),
-      series: seriesRows
-        .map((row) => {
-          const item = row.seriesId ? seriesById.get(row.seriesId) : undefined
-          return item ? { value: item.slug, label: item.name, count: row._count._all } : null
-        })
-        .filter((s): s is FacetBucket => Boolean(s)),
-      ...scalars,
       availability: availabilityRows.map((row) => ({
         value: row.availability,
         label: row.availability.replace(/_/g, " ").toLowerCase(),
@@ -192,16 +173,16 @@ export const facetRepository = {
         count: row._count._all,
       })),
       priceRange: {
-        min: Math.floor(number(ranges._min.currentBest, 0)),
-        max: Math.ceil(number(ranges._max.currentBest, 10_000)),
+        min: Math.floor(number(ranges._min?.msrp, 0)),
+        max: Math.ceil(number(ranges._max?.msrp, 10_000)),
       },
       weightRange: {
-        min: number(ranges._min.weightKg, 0),
-        max: number(ranges._max.weightKg, 8),
+        min: number(ranges._min?.weightKg, 0),
+        max: number(ranges._max?.weightKg, 8),
       },
       scaleRange: {
-        min: number(ranges._min.scaleLengthIn, 20),
-        max: number(ranges._max.scaleLengthIn, 35),
+        min: number(ranges._min?.scaleLengthIn, 20),
+        max: number(ranges._max?.scaleLengthIn, 35),
       },
     }
   },
