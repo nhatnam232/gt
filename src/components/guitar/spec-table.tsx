@@ -1,10 +1,9 @@
-import { SPEC_GROUPS, specFieldsByGroup } from "@/config/spec-schema"
 import type { GuitarDetailDto } from "@/domain/guitar/types"
+import { toNumber } from "@/domain/guitar/view"
 
 function Row({ label, value }: { label: string; value: string | number | boolean | null }) {
   if (value === null || value === undefined || value === "") return null
-  const display =
-    typeof value === "boolean" ? (value ? "Yes" : "No") : String(value)
+  const display = typeof value === "boolean" ? (value ? "Yes" : "No") : String(value)
   return (
     <tr className="border-b last:border-0">
       <th
@@ -22,9 +21,9 @@ export function SpecTable({ guitar }: { guitar: GuitarDetailDto }) {
   const data: Record<string, string | number | boolean | null> = {
     Brand: guitar.brand.name,
     Model: guitar.model,
-    SKU: guitar.sku,
     Category: guitar.category,
     Subtype: guitar.subtype,
+    Series: guitar.series,
     "Body shape": guitar.bodyShape,
     "Top wood": guitar.topWood,
     "Back wood": guitar.backWood,
@@ -33,8 +32,8 @@ export function SpecTable({ guitar }: { guitar: GuitarDetailDto }) {
     Fingerboard: guitar.fingerboard,
     Bridge: guitar.bridge,
     "Nut material": guitar.nutMaterial,
-    "Scale length": guitar.scaleLengthIn ? `${guitar.scaleLengthIn}"` : null,
-    "Nut width": guitar.nutWidthIn ? `${guitar.nutWidthIn}"` : null,
+    "Scale length": guitar.scaleLengthIn ? `${guitar.scaleLengthIn}\"` : null,
+    "Nut width": guitar.nutWidthIn ? `${guitar.nutWidthIn}\"` : null,
     Frets: guitar.frets,
     Strings: guitar.strings,
     Pickups: guitar.pickupConfig,
@@ -43,12 +42,12 @@ export function SpecTable({ guitar }: { guitar: GuitarDetailDto }) {
     Color: guitar.color,
     "Made in": guitar.madeIn,
     Year: guitar.year,
-    "Weight (kg)": guitar.weightKg,
+    Handedness: guitar.handedness,
+    "Weight (kg)": toNumber(guitar.weightKg),
     "Case included": guitar.caseIncluded,
     Cutaway: guitar.cutaway,
     "Electro-acoustic": guitar.electroAcoustic,
     Warranty: guitar.warranty,
-    ...guitar.specs,
   }
 
   return (
