@@ -1,8 +1,8 @@
-import { features } from "@/lib/env"
-import { guitarIndex, type GuitarDocument } from "@/lib/search"
+import { searchEnabled, searchGuitars } from "@/lib/search"
 import { prisma } from "@/lib/prisma"
 import { categoryMeta } from "@/config/navigation"
 import { decimalToNumber } from "@/lib/utils"
+import type { Category } from "@prisma/client"
 
 export type SearchHit = {
   slug: string
@@ -50,40 +50,32 @@ export const searchService = {
     const term = q.trim().slice(0, 120)
     const limit = Math.min(options?.limit ?? 8, 30)
     const started = Date.now()
-    const engine = features.meilisearch ? "meilisearch" : "postgres"
+    const engine = searchEnabled ? "meilisearch" : "postgres"
 
     if (!term) return { hits: [], total: 0, tookMs: 0, engine }
 
-    const index = guitarIndex()
-    if (index) {
-      const result = await index.search(term, {
-        limit,
-        attributesToHighlight: ["name", "brand"],
-        highlightPreTag: "<mark>",
-        highlightPostTag: "</mark>",
-        filter: options?.category
-          ? [`categorySlug = "${options.category.replace(/[^a-z0-9-]/gi, "")}"`]
-          : undefined,
-      })
+    if (searchEnabled) {
+      const filter = options?.category
+        ? `categorySlug = "${options.category.replace(/[^a-z0-9-]/gi, "")}"`
+        : undefined
+      const result = await searchGuitars(term, filter, undefined, limit, 0)
+
       return {
-        hits: result.hits.map((hit) => {
-          const doc = hit as GuitarDocument & { _formatted?: Partial<GuitarDocument> }
-          return {
-            slug: doc.slug,
-            name: doc.name,
-            brand: doc.brand,
-            category: doc.category,
-            categorySlug: doc.categorySlug,
-            price: doc.price,
-            // Documents are indexed with normalised USD pricing.
-            currency: "USD",
-            expertScore: doc.expertScore,
-            image: doc.image,
-            highlighted: doc._formatted?.name ?? escapeHtml(doc.name),
-          }
-        }),
-        total: result.estimatedTotalHits ?? result.hits.length,
-        tookMs: result.processingTimeMs ?? Date.now() - started,
+        hits: result.hits.map((doc) => ({
+          slug: doc.slug,
+          name: doc.name,
+          brand: doc.brand,
+          category: doc.category,
+          categorySlug: doc.categorySlug,
+          price: doc.price,
+          // Documents are indexed with normalised USD pricing.
+          currency: "USD",
+          expertScore: doc.expertScore,
+          image: doc.image,
+          highlighted: doc._formatted?.name ?? escapeHtml(doc.name),
+        })),
+        total: result.estimatedTotalHits || result.hits.length,
+        tookMs: result.processingTimeMs || Date.now() - started,
         engine: "meilisearch",
       }
     }
@@ -97,17 +89,18 @@ export const searchService = {
           { brand: { name: { contains: term, mode: "insensitive" } } },
         ],
       },
-      orderBy: [{ popularity: "desc" }, { expertScore: "desc" }],
+      // Lower popularityRank means more popular, so ascending is "best first".
+      orderBy: [{ popularityRank: "asc" }, { expertScore: "desc" }],
       take: limit,
       select: {
         slug: true,
         name: true,
         category: true,
-        currentBest: true,
-        currency: true,
+        msrp: true,
         expertScore: true,
         brand: { select: { name: true } },
-        images: { orderBy: { position: "asc" }, take: 1, select: { url: true } },
+        images: { orderBy: { order: "asc" }, take: 1, select: { url: true } },
+        prices: { orderBy: { price: "asc" }, take: 1, select: { price: true, currency: true } },
       },
     })
 
@@ -116,10 +109,10 @@ export const searchService = {
         slug: row.slug,
         name: row.name,
         brand: row.brand.name,
-        category: row.category,
+        category: row.category as Category,
         categorySlug: categoryMeta(row.category).slug,
-        price: decimalToNumber(row.currentBest),
-        currency: row.currency,
+        price: decimalToNumber(row.prices[0]?.price ?? row.msrp),
+        currency: row.prices[0]?.currency ?? "USD",
         expertScore: decimalToNumber(row.expertScore),
         image: row.images[0]?.url ?? null,
         highlighted: highlight(row.name, term),
