@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select"
 import { formatPrice } from "@/lib/utils"
 import type { GuitarCardDto } from "@/domain/guitar/types"
+import { bestPrice, guitarCurrency } from "@/domain/guitar/view"
 
 /** Two-slot shortcut into the full comparison table. */
 export function QuickCompare({ options }: { options: GuitarCardDto[] }) {
@@ -36,31 +37,33 @@ export function QuickCompare({ options }: { options: GuitarCardDto[] }) {
         {[
           { value: left, set: setLeft, label: "First instrument" },
           { value: right, set: setRight, label: "Second instrument" },
-        ].map((slot, index) => (
-          <div key={slot.label} className={index === 1 ? "md:order-3" : undefined}>
-            <label className="eyebrow mb-2 block">{slot.label}</label>
-            <Select value={slot.value} onValueChange={slot.set}>
-              <SelectTrigger>
-                <SelectValue placeholder="Choose a guitar" />
-              </SelectTrigger>
-              <SelectContent>
-                {options.map((option) => (
-                  <SelectItem key={option.slug} value={option.slug}>
-                    {option.brand.name} {option.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {bySlug.get(slot.value)?.price ? (
-              <p className="mt-2 text-xs tabular-nums text-muted-foreground">
-                {formatPrice(
-                  bySlug.get(slot.value)!.price!,
-                  bySlug.get(slot.value)!.currency,
-                )}
-              </p>
-            ) : null}
-          </div>
-        ))}
+        ].map((slot, index) => {
+          const selected = bySlug.get(slot.value)
+          const price = selected ? bestPrice(selected) : null
+
+          return (
+            <div key={slot.label} className={index === 1 ? "md:order-3" : undefined}>
+              <label className="eyebrow mb-2 block">{slot.label}</label>
+              <Select value={slot.value} onValueChange={slot.set}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a guitar" />
+                </SelectTrigger>
+                <SelectContent>
+                  {options.map((option) => (
+                    <SelectItem key={option.slug} value={option.slug}>
+                      {option.brand.name} {option.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selected && price ? (
+                <p className="mt-2 text-xs tabular-nums text-muted-foreground">
+                  {formatPrice(price, guitarCurrency(selected))}
+                </p>
+              ) : null}
+            </div>
+          )
+        })}
 
         <span className="hidden justify-self-center pb-2 text-sm text-muted-foreground md:order-2 md:block">
           vs
