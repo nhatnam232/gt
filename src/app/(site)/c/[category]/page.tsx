@@ -3,9 +3,9 @@ import { guitarService } from "@/server/services/guitar.service"
 import { GuitarCard } from "@/components/guitar-card"
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
-import { siteConfig } from "@/config/site"
 
-export const revalidate = siteConfig.REVALIDATE.listing
+// Next.js requires a literal number (siteConfig.REVALIDATE.listing = 600)
+export const revalidate = 600
 
 export async function generateMetadata({ params }: { params: Promise<{ category: string }> }): Promise<Metadata> {
   const { category } = await params
