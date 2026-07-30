@@ -62,7 +62,8 @@ export async function reindexSearch(): Promise<number> {
       expertScore: decimalToNumber(row.expertScore),
       userScore: decimalToNumber(row.userScore),
       valueScore: decimalToNumber(row.valueScore),
-      popularity: row.popularityRank,
+      // Unranked instruments sort last; the document field is non-nullable.
+      popularity: row.popularityRank ?? 0,
       availability: row.availability,
       handedness: row.handedness,
       cutaway: row.cutaway ?? false,
