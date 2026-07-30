@@ -1,366 +1,127 @@
-import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
-import { categoryMeta } from "@/config/navigation"
-import { decimalToNumber } from "@/lib/utils"
-import type {
-  GuitarCardDto,
-  GuitarDetailDto,
-  GuitarQuery,
-  Paginated,
-} from "@/domain/guitar/types"
+import type { Prisma, Category, Availability, Handedness } from "@prisma/client"
+import type { GuitarQuery } from "@/domain/guitar/types"
+import { SORT_OPTIONS } from "@/domain/guitar/types"
 
-// The primary image is simply the lowest `position` - the ETL layer keeps the
-// hero shot at position 0, so no extra flag column is needed.
-const primaryImage = {
-  orderBy: { position: "asc" },
-  take: 1,
-  select: { url: true, alt: true, width: true, height: true, blurData: true },
-} satisfies Prisma.Guitar$imagesArgs
+const GUITAR_INCLUDE = {
+  brand: { select: { name: true, slug: true } },
+  images: { where: { isPrimary: true }, take: 1 },
+  prices: { orderBy: { price: "asc" as const }, take: 1 },
+} satisfies Prisma.GuitarInclude
 
-const cardSelect = {
-  id: true,
-  slug: true,
-  name: true,
-  category: true,
-  bodyShape: true,
-  topWood: true,
-  pickupConfig: true,
-  scaleLengthIn: true,
-  frets: true,
-  strings: true,
-  madeIn: true,
-  year: true,
-  msrp: true,
-  currentBest: true,
-  currency: true,
-  expertScore: true,
-  userScore: true,
-  userScoreCount: true,
-  valueScore: true,
-  availability: true,
-  brand: { select: { slug: true, name: true } },
-  series: { select: { name: true } },
-  images: primaryImage,
-} satisfies Prisma.GuitarSelect
+export type GuitarListItem = Prisma.GuitarGetPayload<{ include: typeof GUITAR_INCLUDE }>
 
-type CardRow = Prisma.GuitarGetPayload<{ select: typeof cardSelect }>
+function buildWhere(q: GuitarQuery): Prisma.GuitarWhereInput {
+  const where: Prisma.GuitarWhereInput = { isPublished: true }
 
-export function toCardDto(row: CardRow): GuitarCardDto {
-  const image = row.images[0]
-  return {
-    id: row.id,
-    slug: row.slug,
-    name: row.name,
-    brand: row.brand,
-    series: row.series?.name ?? null,
-    category: row.category,
-    categorySlug: categoryMeta(row.category).slug,
-    bodyShape: row.bodyShape,
-    topWood: row.topWood,
-    pickupConfig: row.pickupConfig,
-    scaleLengthIn: decimalToNumber(row.scaleLengthIn),
-    frets: row.frets,
-    strings: row.strings,
-    madeIn: row.madeIn,
-    year: row.year,
-    price: decimalToNumber(row.currentBest),
-    msrp: decimalToNumber(row.msrp),
-    currency: row.currency,
-    expertScore: decimalToNumber(row.expertScore),
-    userScore: decimalToNumber(row.userScore),
-    userScoreCount: row.userScoreCount,
-    valueScore: decimalToNumber(row.valueScore),
-    availability: row.availability,
-    image: image
-      ? {
-          url: image.url,
-          alt: image.alt ?? row.name,
-          width: image.width,
-          height: image.height,
-          blurData: image.blurData,
-        }
-      : null,
+  if (q.category) where.category = q.category.toUpperCase() as Category
+  if (q.brandSlug) where.brand = { slug: q.brandSlug }
+  if (q.handedness) where.handedness = q.handedness.toUpperCase() as Handedness
+  if (q.availability) where.availability = q.availability.toUpperCase() as Availability
+  if (q.frets) where.frets = q.frets
+  if (q.strings) where.strings = q.strings
+
+  if (q.minPrice || q.maxPrice) {
+    where.msrp = {
+      ...(q.minPrice ? { gte: q.minPrice } : {}),
+      ...(q.maxPrice ? { lte: q.maxPrice } : {}),
+    }
   }
+
+  if (q.q?.trim()) {
+    where.OR = [
+      { name: { contains: q.q, mode: "insensitive" } },
+      { brand: { name: { contains: q.q, mode: "insensitive" } } },
+      { model: { contains: q.q, mode: "insensitive" } },
+      { series: { contains: q.q, mode: "insensitive" } },
+    ]
+  }
+
+  return where
 }
 
-/** Translate a validated GuitarQuery into a Prisma where clause. */
-export function buildWhere(query: GuitarQuery): Prisma.GuitarWhereInput {
-  const and: Prisma.GuitarWhereInput[] = [{ isPublished: true }]
-
-  if (query.category) and.push({ category: query.category })
-  if (query.brands.length) and.push({ brand: { slug: { in: query.brands } } })
-  if (query.series.length) and.push({ series: { slug: { in: query.series } } })
-  if (query.bodyShapes.length) and.push({ bodyShape: { in: query.bodyShapes } })
-  if (query.topWoods.length) and.push({ topWood: { in: query.topWoods } })
-  if (query.backWoods.length) and.push({ backWood: { in: query.backWoods } })
-  if (query.neckWoods.length) and.push({ neckWood: { in: query.neckWoods } })
-  if (query.fingerboards.length) and.push({ fingerboard: { in: query.fingerboards } })
-  if (query.pickups.length) and.push({ pickupConfig: { in: query.pickups } })
-  if (query.finishes.length) and.push({ finish: { in: query.finishes } })
-  if (query.colors.length) and.push({ color: { in: query.colors } })
-  if (query.countries.length) and.push({ madeIn: { in: query.countries } })
-  if (query.availability.length) and.push({ availability: { in: query.availability } })
-  if (query.frets.length) and.push({ frets: { in: query.frets } })
-  if (query.strings.length) and.push({ strings: { in: query.strings } })
-  if (query.years.length) and.push({ year: { in: query.years } })
-  if (query.leftHanded) and.push({ handedness: { in: ["LEFT", "BOTH"] } })
-  if (query.cutaway !== undefined) and.push({ cutaway: query.cutaway })
-  if (query.electroAcoustic !== undefined) and.push({ electroAcoustic: query.electroAcoustic })
-
-  if (query.minPrice !== undefined || query.maxPrice !== undefined) {
-    and.push({
-      currentBest: {
-        ...(query.minPrice !== undefined ? { gte: query.minPrice } : {}),
-        ...(query.maxPrice !== undefined ? { lte: query.maxPrice } : {}),
-      },
-    })
-  }
-  if (query.minScore !== undefined) and.push({ expertScore: { gte: query.minScore } })
-  if (query.minRating !== undefined) and.push({ userScore: { gte: query.minRating } })
-  if (query.minWeight !== undefined || query.maxWeight !== undefined) {
-    and.push({
-      weightKg: {
-        ...(query.minWeight !== undefined ? { gte: query.minWeight } : {}),
-        ...(query.maxWeight !== undefined ? { lte: query.maxWeight } : {}),
-      },
-    })
-  }
-  if (query.minScale !== undefined || query.maxScale !== undefined) {
-    and.push({
-      scaleLengthIn: {
-        ...(query.minScale !== undefined ? { gte: query.minScale } : {}),
-        ...(query.maxScale !== undefined ? { lte: query.maxScale } : {}),
-      },
-    })
-  }
-  if (query.q) {
-    and.push({
-      OR: [
-        { name: { contains: query.q, mode: "insensitive" } },
-        { model: { contains: query.q, mode: "insensitive" } },
-        { brand: { name: { contains: query.q, mode: "insensitive" } } },
-        { series: { name: { contains: query.q, mode: "insensitive" } } },
-      ],
-    })
-  }
-
-  return { AND: and }
-}
-
-function buildOrderBy(query: GuitarQuery): Prisma.GuitarOrderByWithRelationInput[] {
-  switch (query.sort) {
-    case "price-asc":
-      return [{ currentBest: "asc" }, { popularity: "desc" }]
-    case "price-desc":
-      return [{ currentBest: "desc" }, { popularity: "desc" }]
-    case "score-desc":
-      return [{ expertScore: "desc" }, { userScore: "desc" }]
-    case "rating-desc":
-      return [{ userScore: "desc" }, { userScoreCount: "desc" }]
-    case "value-desc":
-      return [{ valueScore: "desc" }, { expertScore: "desc" }]
-    case "newest":
-      return [{ publishedAt: "desc" }, { year: "desc" }]
-    case "popular":
-      return [{ popularity: "desc" }, { expertScore: "desc" }]
-    default:
-      return [{ popularity: "desc" }, { expertScore: "desc" }, { name: "asc" }]
-  }
+function buildOrderBy(sort?: string): Prisma.GuitarOrderByWithRelationInput[] {
+  const option = SORT_OPTIONS.find((s) => s.value === sort) ?? SORT_OPTIONS[0]
+  return Object.entries(option.orderBy).map(([k, v]) => ({ [k]: v })) as Prisma.GuitarOrderByWithRelationInput[]
 }
 
 export const guitarRepository = {
-  async list(query: GuitarQuery): Promise<Paginated<GuitarCardDto>> {
+  async list(query: GuitarQuery) {
+    const { page = 1, perPage = 24 } = query
     const where = buildWhere(query)
-    const skip = (query.page - 1) * query.perPage
-    const [rows, total] = await Promise.all([
+    const orderBy = buildOrderBy(query.sort)
+
+    const [items, total] = await Promise.all([
       prisma.guitar.findMany({
         where,
-        select: cardSelect,
-        orderBy: buildOrderBy(query),
-        skip,
-        take: query.perPage,
+        orderBy,
+        take: perPage,
+        skip: (page - 1) * perPage,
+        include: GUITAR_INCLUDE,
       }),
       prisma.guitar.count({ where }),
     ])
-    const totalPages = Math.max(1, Math.ceil(total / query.perPage))
-    return {
-      items: rows.map(toCardDto),
-      total,
-      page: query.page,
-      perPage: query.perPage,
-      totalPages,
-      hasMore: query.page < totalPages,
-    }
+
+    return { items, total, page, perPage, totalPages: Math.ceil(total / perPage) }
   },
 
-  async bySlugs(slugs: string[]): Promise<GuitarCardDto[]> {
-    if (slugs.length === 0) return []
-    const rows = await prisma.guitar.findMany({
-      where: { slug: { in: slugs }, isPublished: true },
-      select: cardSelect,
-    })
-    const bySlug = new Map(rows.map((row) => [row.slug, toCardDto(row)]))
-    return slugs.map((slug) => bySlug.get(slug)).filter((v): v is GuitarCardDto => Boolean(v))
-  },
-
-  async topBy(
-    field: "expertScore" | "userScore" | "valueScore" | "popularity",
-    take: number,
-    where?: Prisma.GuitarWhereInput,
-  ): Promise<GuitarCardDto[]> {
-    const rows = await prisma.guitar.findMany({
-      where: { isPublished: true, ...where },
-      select: cardSelect,
-      orderBy: [{ [field]: "desc" }, { userScoreCount: "desc" }],
-      take,
-    })
-    return rows.map(toCardDto)
-  },
-
-  async detail(slug: string): Promise<GuitarDetailDto | null> {
-    const row = await prisma.guitar.findFirst({
-      where: { slug, isPublished: true },
+  async findBySlug(slug: string) {
+    return prisma.guitar.findUnique({
+      where: { slug },
       include: {
-        brand: { select: { slug: true, name: true } },
-        series: { select: { name: true } },
-        images: { orderBy: { position: "asc" } },
-        videos: { orderBy: { position: "asc" } },
-        documents: true,
-        faqs: { orderBy: { position: "asc" } },
-        offers: {
+        brand: true,
+        images: { orderBy: { order: "asc" } },
+        prices: {
           orderBy: { price: "asc" },
-          include: { retailer: { select: { slug: true, name: true, websiteUrl: true } } },
+          include: { source: { select: { name: true, baseUrl: true } } },
         },
-        userReviews: {
+        reviews: {
           where: { isApproved: true },
           orderBy: { createdAt: "desc" },
-          take: 30,
-          include: { user: { select: { name: true } } },
+          take: 10,
+          include: { user: { select: { name: true, image: true } } },
         },
-        sourceRecords: {
-          orderBy: { fetchedAt: "desc" },
-          take: 12,
-          include: { source: { select: { name: true } } },
+        rankEntries: {
+          include: { ranking: { select: { name: true, slug: true } } },
+          orderBy: { position: "asc" },
         },
       },
     })
-    if (!row) return null
-
-    // PriceHistory is intentionally relation-free (append-only time series), so
-    // it is fetched by id rather than included.
-    const history = await prisma.priceHistory.findMany({
-      where: { guitarId: row.id },
-      orderBy: { recordedAt: "asc" },
-      take: 180,
-    })
-
-    const card = toCardDto({
-      ...row,
-      images: row.images.slice(0, 1),
-    } as unknown as CardRow)
-
-    return {
-      ...card,
-      model: row.model,
-      sku: row.sku,
-      mpn: row.mpn,
-      gtin: row.gtin,
-      subtype: row.subtype,
-      backWood: row.backWood,
-      sideWood: row.sideWood,
-      neckWood: row.neckWood,
-      fingerboard: row.fingerboard,
-      bridge: row.bridge,
-      nutMaterial: row.nutMaterial,
-      nutWidthIn: decimalToNumber(row.nutWidthIn),
-      electronics: row.electronics,
-      finish: row.finish,
-      color: row.color,
-      weightKg: decimalToNumber(row.weightKg),
-      handedness: row.handedness,
-      cutaway: row.cutaway,
-      electroAcoustic: row.electroAcoustic,
-      caseIncluded: row.caseIncluded,
-      accessories: row.accessories,
-      warranty: row.warranty,
-      specs: (row.specs ?? {}) as GuitarDetailDto["specs"],
-      summary: row.summary,
-      pros: row.pros,
-      cons: row.cons,
-      images: row.images.map((img) => ({
-        url: img.url,
-        alt: img.alt ?? row.name,
-        width: img.width,
-        height: img.height,
-        blurData: img.blurData,
-        is360: img.is360,
-      })),
-      videos: row.videos.map((v) => ({
-        videoId: v.videoId,
-        provider: v.provider,
-        title: v.title,
-        channel: v.channel,
-      })),
-      documents: row.documents.map((d) => ({ url: d.url, title: d.title, kind: d.kind })),
-      faqs: row.faqs.map((f) => ({ question: f.question, answer: f.answer })),
-      offers: row.offers.map((offer) => ({
-        id: offer.id,
-        retailer: offer.retailer,
-        price: decimalToNumber(offer.price) ?? 0,
-        currency: offer.currency,
-        url: offer.url,
-        availability: offer.availability,
-        condition: offer.condition,
-        shippingNote: offer.shippingNote,
-        checkedAt: offer.checkedAt.toISOString(),
-      })),
-      priceHistory: history.map((point) => ({
-        date: point.recordedAt.toISOString(),
-        price: decimalToNumber(point.price) ?? 0,
-      })),
-      reviews: row.userReviews.map((review) => ({
-        id: review.id,
-        author: review.authorName ?? review.user?.name ?? "Verified owner",
-        rating: review.rating,
-        title: review.title,
-        body: review.body,
-        createdAt: review.createdAt.toISOString(),
-      })),
-      sources: row.sourceRecords.map((record) => ({
-        name: record.source.name,
-        url: record.url,
-        fetchedAt: record.fetchedAt.toISOString(),
-      })),
-      updatedAt: row.updatedAt.toISOString(),
-    }
   },
 
-  async related(guitar: GuitarCardDto, take = 8): Promise<GuitarCardDto[]> {
-    const price = guitar.price ?? guitar.msrp
-    const rows = await prisma.guitar.findMany({
+  async findRelated(guitar: { brandId: string; category: Category; id: string }, limit = 4) {
+    return prisma.guitar.findMany({
       where: {
         isPublished: true,
-        slug: { not: guitar.slug },
-        category: guitar.category,
-        ...(price ? { currentBest: { gte: price * 0.55, lte: price * 1.65 } } : {}),
+        OR: [{ brandId: guitar.brandId }, { category: guitar.category }],
+        NOT: { id: guitar.id },
       },
-      select: cardSelect,
-      orderBy: [{ expertScore: "desc" }, { popularity: "desc" }],
-      take,
+      orderBy: { expertScore: "desc" },
+      take: limit,
+      include: GUITAR_INCLUDE,
     })
-    return rows.map(toCardDto)
   },
 
-  async publishedSlugs(take = 20_000): Promise<{ slug: string; updatedAt: Date }[]> {
+  async findBySlugMany(slugs: string[]) {
     return prisma.guitar.findMany({
-      where: { isPublished: true },
-      select: { slug: true, updatedAt: true },
-      orderBy: { popularity: "desc" },
-      take,
+      where: { slug: { in: slugs }, isPublished: true },
+      include: {
+        brand: true,
+        images: { where: { isPrimary: true }, take: 1 },
+        prices: { orderBy: { price: "asc" }, take: 1 },
+      },
     })
   },
 
-  async incrementPopularity(slug: string): Promise<void> {
-    await prisma.guitar.updateMany({ where: { slug }, data: { popularity: { increment: 1 } } })
+  async create(data: Prisma.GuitarCreateInput) {
+    return prisma.guitar.create({ data, include: GUITAR_INCLUDE })
+  },
+
+  async update(slug: string, data: Prisma.GuitarUpdateInput) {
+    return prisma.guitar.update({ where: { slug }, data, include: GUITAR_INCLUDE })
+  },
+
+  async delete(slug: string) {
+    return prisma.guitar.delete({ where: { slug } })
   },
 }

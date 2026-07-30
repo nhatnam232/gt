@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import type { Prisma } from "@prisma/client"
 
 export type ArticleCard = {
   slug: string
@@ -7,91 +8,47 @@ export type ArticleCard = {
   excerpt: string | null
   coverUrl: string | null
   coverAlt: string | null
-  author: string | null
+  authorName: string
   readMinutes: number
-  publishedAt: string
+  publishedAt: Date | null
   tags: string[]
 }
 
-export type ArticleDetail = ArticleCard & {
-  id: string
-  body: string | null
-  updatedAt: string
-}
-
 export const articleRepository = {
-  async listByType(type: string, take = 12, skip = 0): Promise<ArticleCard[]> {
-    const rows = await prisma.article.findMany({
-      where: { type: type as "REVIEW" | "GUIDE" | "NEWS" | "DEAL", isPublished: true },
-      orderBy: { publishedAt: "desc" },
-      take,
-      skip,
-      select: {
-        slug: true,
-        type: true,
-        title: true,
-        excerpt: true,
-        coverUrl: true,
-        coverAlt: true,
-        author: true,
-        readMinutes: true,
-        publishedAt: true,
-        tags: true,
-      },
-    })
-    return rows.map((r) => ({ ...r, publishedAt: r.publishedAt.toISOString() }))
-  },
-
-  async latest(
-    types: string[] = ["REVIEW", "GUIDE", "NEWS", "DEAL"],
-    take = 6,
-  ): Promise<ArticleCard[]> {
-    const rows = await prisma.article.findMany({
-      where: { type: { in: types as ("REVIEW" | "GUIDE" | "NEWS" | "DEAL")[] }, isPublished: true },
-      orderBy: { publishedAt: "desc" },
-      take,
-      select: {
-        slug: true,
-        type: true,
-        title: true,
-        excerpt: true,
-        coverUrl: true,
-        coverAlt: true,
-        author: true,
-        readMinutes: true,
-        publishedAt: true,
-        tags: true,
-      },
-    })
-    return rows.map((r) => ({ ...r, publishedAt: r.publishedAt.toISOString() }))
-  },
-
-  async detail(slug: string): Promise<ArticleDetail | null> {
-    const row = await prisma.article.findUnique({
-      where: { slug },
-    })
-    if (!row) return null
-    return {
-      id: row.id,
-      slug: row.slug,
-      type: row.type,
-      title: row.title,
-      excerpt: row.excerpt,
-      coverUrl: row.coverUrl,
-      coverAlt: row.coverAlt,
-      author: row.author,
-      readMinutes: row.readMinutes,
-      publishedAt: row.publishedAt.toISOString(),
-      tags: row.tags,
-      body: row.body,
-      updatedAt: row.updatedAt.toISOString(),
-    }
-  },
-
-  async slugs(): Promise<{ slug: string; type: string; updatedAt: Date }[]> {
+  async list(type?: string, limit = 20) {
     return prisma.article.findMany({
+      where: { isPublished: true, ...(type ? { type } : {}) },
+      orderBy: { publishedAt: "desc" },
+      take: limit,
+      select: {
+        slug: true, type: true, title: true, excerpt: true,
+        coverUrl: true, coverAlt: true, authorName: true,
+        readMinutes: true, publishedAt: true, tags: true,
+      },
+    })
+  },
+
+  async findBySlug(slug: string) {
+    return prisma.article.findUnique({ where: { slug } })
+  },
+
+  async slugs() {
+    const rows = await prisma.article.findMany({
       where: { isPublished: true },
       select: { slug: true, type: true, updatedAt: true },
     })
+    return rows.map((r) => ({ slug: r.slug, type: r.type, updatedAt: r.updatedAt }))
+  },
+
+  async create(data: Prisma.ArticleCreateInput) {
+    return prisma.article.create({ data })
+  },
+
+  async update(slug: string, data: Prisma.ArticleUpdateInput) {
+    return prisma.article.update({ where: { slug }, data })
+  },
+
+  async delete(slug: string) {
+    return prisma.article.delete({ where: { slug } })
   },
 }
