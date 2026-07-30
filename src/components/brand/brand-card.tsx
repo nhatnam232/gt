@@ -4,6 +4,8 @@ import type { BrandListItem } from "@/server/repositories/brand.repository"
 import { formatNumber } from "@/lib/utils"
 
 export function BrandCard({ brand }: { brand: BrandListItem }) {
+  const guitarCount = brand._count.guitars
+
   return (
     <Link
       href={`/brands/${brand.slug}`}
@@ -23,8 +25,8 @@ export function BrandCard({ brand }: { brand: BrandListItem }) {
         )}
       </span>
       <span className="text-xs text-muted-foreground">
-        {formatNumber(brand.guitarCount)} instrument{brand.guitarCount === 1 ? "" : "s"}
-        {brand.countryCode ? ` · ${brand.countryCode}` : ""}
+        {formatNumber(guitarCount)} instrument{guitarCount === 1 ? "" : "s"}
+        {brand.countryCode ? ` \u00b7 ${brand.countryCode}` : ""}
       </span>
     </Link>
   )
