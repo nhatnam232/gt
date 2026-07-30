@@ -1,75 +1,110 @@
 import { requireRole } from "@/lib/session"
 import { redirect, notFound } from "next/navigation"
 import { prisma } from "@/lib/prisma"
-import { upsertGuitar } from "@/server/actions/admin.actions"
-import { Input, Textarea } from "@/components/ui/input"
+import { updateGuitar, deleteGuitar } from "@/server/actions/guitar.actions"
+import { publishGuitar, unpublishGuitar } from "@/server/actions/admin.actions"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
+import Link from "next/link"
+
+export const dynamic = "force-dynamic"
 
 export default async function EditGuitarPage({ params }: { params: Promise<{ slug: string }> }) {
   await requireRole("EDITOR").catch(() => redirect("/sign-in"))
   const { slug } = await params
 
-  const [guitar, brands] = await Promise.all([
-    prisma.guitar.findUnique({ where: { slug } }),
-    prisma.brand.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
-  ])
+  const guitar = await prisma.guitar.findUnique({
+    where: { slug },
+    include: { brand: { select: { name: true } } },
+  })
   if (!guitar) notFound()
+
+  const brands = await prisma.brand.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } })
+  const CATEGORIES = ["ACOUSTIC", "ELECTRIC", "BASS", "CLASSICAL", "UKULELE", "AMPLIFIER", "PEDAL", "ACCESSORY"]
+
+  const updateWithSlug = updateGuitar.bind(null, slug)
+  const deleteWithSlug = deleteGuitar.bind(null, slug)
 
   return (
     <div className="max-w-2xl">
-      <h1 className="text-2xl font-semibold">Edit: {guitar.name}</h1>
-      <form action={upsertGuitar} className="mt-8 space-y-6">
-        <input type="hidden" name="id" value={guitar.id} />
-        <div className="space-y-1.5">
-          <Label htmlFor="name">Name *</Label>
-          <Input id="name" name="name" required defaultValue={guitar.name} />
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-3">
+          <Link href="/admin/guitars" className="text-sm text-muted-foreground hover:text-foreground">← Back</Link>
+          <h1 className="text-xl font-semibold">{guitar.name}</h1>
+          {guitar.isPublished ? <Badge variant="success">Published</Badge> : <Badge variant="outline">Draft</Badge>}
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="brandId">Brand *</Label>
-          <select name="brandId" id="brandId" required defaultValue={guitar.brandId} className="flex h-10 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm">
-            {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-          </select>
+        <div className="flex gap-2">
+          {guitar.isPublished ? (
+            <form action={unpublishGuitar.bind(null, slug)}>
+              <Button size="sm" variant="outline" type="submit">Unpublish</Button>
+            </form>
+          ) : (
+            <form action={publishGuitar.bind(null, slug)}>
+              <Button size="sm" variant="success" type="submit">Publish</Button>
+            </form>
+          )}
+          <form action={deleteWithSlug} onSubmit={(e) => { if (!confirm("Delete this guitar?")) e.preventDefault() }}>
+            <Button size="sm" variant="destructive" type="submit">Delete</Button>
+          </form>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="category">Category *</Label>
-          <select name="category" id="category" required defaultValue={guitar.category} className="flex h-10 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm">
-            {["ACOUSTIC","ELECTRIC","BASS","CLASSICAL","UKULELE","AMPLIFIER","PEDAL","ACCESSORY"].map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="model">Model</Label>
-          <Input id="model" name="model" defaultValue={guitar.model ?? ""} />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="msrp">MSRP (USD)</Label>
-            <Input id="msrp" name="msrp" type="number" step="0.01" defaultValue={guitar.msrp?.toString() ?? ""} />
+      </div>
+
+      <form action={updateWithSlug} className="mt-8 space-y-5">
+        <div className="grid gap-5 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <Label>Name</Label>
+            <Input name="name" defaultValue={guitar.name} className="mt-1" />
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="year">Year</Label>
-            <Input id="year" name="year" type="number" defaultValue={guitar.year?.toString() ?? ""} />
+          <div>
+            <Label>Category</Label>
+            <select name="category" defaultValue={guitar.category} className="mt-1 flex h-10 w-full rounded-xl border border-input bg-background px-3.5 text-sm">
+              {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <Label>Model</Label>
+            <Input name="model" defaultValue={guitar.model ?? ""} className="mt-1" />
+          </div>
+          <div>
+            <Label>Year</Label>
+            <Input name="year" type="number" defaultValue={guitar.year ?? ""} className="mt-1" />
+          </div>
+          <div>
+            <Label>MSRP (USD)</Label>
+            <Input name="msrp" type="number" step="0.01" defaultValue={guitar.msrp ? Number(guitar.msrp) : ""} className="mt-1" />
+          </div>
+          <div>
+            <Label>Made in</Label>
+            <Input name="madeIn" defaultValue={guitar.madeIn ?? ""} className="mt-1" />
+          </div>
+          <div>
+            <Label>Top wood</Label>
+            <Input name="topWood" defaultValue={guitar.topWood ?? ""} className="mt-1" />
+          </div>
+          <div>
+            <Label>Neck wood</Label>
+            <Input name="neckWood" defaultValue={guitar.neckWood ?? ""} className="mt-1" />
+          </div>
+          <div>
+            <Label>Fingerboard</Label>
+            <Input name="fingerboard" defaultValue={guitar.fingerboard ?? ""} className="mt-1" />
+          </div>
+          <div>
+            <Label>Frets</Label>
+            <Input name="frets" type="number" defaultValue={guitar.frets ?? ""} className="mt-1" />
+          </div>
+          <div>
+            <Label>Strings</Label>
+            <Input name="strings" type="number" defaultValue={guitar.strings ?? ""} className="mt-1" />
+          </div>
+          <div className="sm:col-span-2">
+            <Label>Summary</Label>
+            <textarea name="summary" rows={3} defaultValue={guitar.summary ?? ""} className="mt-1 flex min-h-[80px] w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-sm" />
           </div>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="summary">Summary</Label>
-          <Textarea id="summary" name="summary" rows={4} defaultValue={guitar.summary ?? ""} />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="imageUrl">Cover image URL</Label>
-          <Input id="imageUrl" name="imageUrl" type="url" defaultValue={guitar.images?.[0] ?? ""} />
-        </div>
-        <div className="flex items-center gap-2">
-          <input type="checkbox" id="isPublished" name="isPublished" value="true"
-            defaultChecked={guitar.isPublished} className="size-4 rounded" />
-          <Label htmlFor="isPublished">Published</Label>
-        </div>
-        <div className="flex gap-3">
-          <Button type="submit">Save changes</Button>
-          <Button type="button" variant="outline"><a href="/admin/guitars">Cancel</a></Button>
-        </div>
+        <Button type="submit">Save changes</Button>
       </form>
     </div>
   )

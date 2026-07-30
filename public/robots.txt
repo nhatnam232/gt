@@ -1,9 +1,6 @@
 User-agent: *
 Allow: /
 Disallow: /admin
-Disallow: /api/
-
-User-agent: GuitarTribeBot
-Allow: /
+Disallow: /api
 
 Sitemap: https://guitartribe.io/sitemap.xml
