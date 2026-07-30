@@ -1,0 +1,610 @@
+// ---------------------------------------------------------------------------
+// GuitarTribe - data model
+// Design notes:
+//  * Hot filter facets are real columns (indexed) so listing queries stay fast.
+//  * Long-tail / brand-specific specs live in `specs` (JSONB) so the crawler can
+//    keep every field a manufacturer publishes without schema churn.
+//  * Every persisted product row is traceable to at least one SourceRecord,
+//    which is what keeps the catalog free of invented data.
+// ---------------------------------------------------------------------------
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearchPostgres"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// --------------------------------------------------------------------------
+// Enums
+// --------------------------------------------------------------------------
+
+enum Category {
+  ACOUSTIC
+  ELECTRIC
+  BASS
+  CLASSICAL
+  UKULELE
+  AMPLIFIER
+  PEDAL
+  ACCESSORY
+}
+
+enum Availability {
+  IN_STOCK
+  OUT_OF_STOCK
+  PREORDER
+  BACKORDER
+  DISCONTINUED
+  UNKNOWN
+}
+
+enum Handedness {
+  RIGHT
+  LEFT
+  BOTH
+}
+
+enum Role {
+  USER
+  EDITOR
+  ADMIN
+}
+
+enum ArticleType {
+  REVIEW
+  GUIDE
+  NEWS
+  DEAL
+}
+
+enum PublishState {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum SourceKind {
+  OFFICIAL
+  RETAILER
+  WIKIDATA
+  WIKIPEDIA
+  RSS
+  JSON_FEED
+  OPEN_GRAPH
+  MANUAL_IMPORT
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  SUCCESS
+  PARTIAL
+  FAILED
+  CANCELLED
+}
+
+enum LogLevel {
+  DEBUG
+  INFO
+  WARN
+  ERROR
+}
+
+enum RankingKey {
+  TOP_ACOUSTIC
+  TOP_ELECTRIC
+  TOP_BASS
+  TOP_CLASSICAL
+  BEST_BEGINNER
+  BEST_INTERMEDIATE
+  BEST_PROFESSIONAL
+  BEST_RECORDING
+  BEST_LIVE
+  BEST_BUDGET
+  BEST_PREMIUM
+  BEST_VALUE
+}
+
+// --------------------------------------------------------------------------
+// Catalog
+// --------------------------------------------------------------------------
+
+model Brand {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  legalName   String?
+  logoUrl     String?
+  websiteUrl  String?
+  countryCode String?
+  foundedYear Int?
+  description String?  @db.Text
+  isFeatured  Boolean  @default(false)
+  priceTier   String?
+  wikidataId  String?  @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  series  Series[]
+  guitars Guitar[]
+
+  @@index([isFeatured])
+  @@index([name])
+}
+
+model Series {
+  id          String   @id @default(cuid())
+  brandId     String
+  slug        String
+  name        String
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  brand   Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  guitars Guitar[]
+
+  @@unique([brandId, slug])
+  @@index([brandId])
+}
+
+model Guitar {
+  id       String  @id @default(cuid())
+  slug     String  @unique
+  name     String
+  model    String?
+  sku      String?
+  mpn      String?
+  gtin     String?
+  brandId  String
+  seriesId String?
+
+  category Category
+  subtype  String?
+
+  // ---- pricing -----------------------------------------------------------
+  msrp        Decimal? @db.Decimal(10, 2)
+  currentBest Decimal? @db.Decimal(10, 2)
+  currency    String   @default("USD")
+
+  // ---- construction (indexed facets) -------------------------------------
+  bodyShape     String?
+  topWood       String?
+  backWood      String?
+  sideWood      String?
+  neckWood      String?
+  fingerboard   String?
+  bridge        String?
+  nutMaterial   String?
+  scaleLengthIn Decimal?    @db.Decimal(5, 3)
+  nutWidthIn    Decimal?    @db.Decimal(5, 3)
+  frets         Int?
+  strings       Int?
+  pickupConfig  String?
+  electronics   String?
+  finish        String?
+  color         String?
+  madeIn        String?
+  year          Int?
+  weightKg      Decimal?    @db.Decimal(5, 3)
+  handedness    Handedness  @default(RIGHT)
+  cutaway       Boolean?
+  electroAcoustic Boolean?
+  caseIncluded  Boolean?
+  accessories   String[]    @default([])
+  warranty      String?
+
+  // ---- long tail ---------------------------------------------------------
+  /// Full specification map exactly as published by the source, e.g.
+  /// { "Tuners": "Grover 18:1", "Radius": "12\"" }
+  specs Json @default("{}")
+
+  // ---- editorial / scoring ----------------------------------------------
+  summary       String?  @db.Text
+  pros          String[] @default([])
+  cons          String[] @default([])
+  expertScore   Decimal? @db.Decimal(3, 1)
+  userScore     Decimal? @db.Decimal(3, 1)
+  userScoreCount Int     @default(0)
+  valueScore    Decimal? @db.Decimal(3, 1)
+  popularity    Int      @default(0)
+
+  availability Availability @default(UNKNOWN)
+  isPublished  Boolean      @default(false)
+  publishedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  brand         Brand           @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  series        Series?         @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  images        GuitarImage[]
+  videos        GuitarVideo[]
+  documents     GuitarDocument[]
+  offers        PriceOffer[]
+  faqs          GuitarFaq[]
+  userReviews   UserReview[]
+  rankingItems  RankingEntry[]
+  sourceRecords SourceRecord[]
+  articles      ArticleGuitar[]
+
+  @@unique([brandId, model, year], name: "brand_model_year")
+  @@index([category, isPublished])
+  @@index([brandId])
+  @@index([seriesId])
+  @@index([currentBest])
+  @@index([expertScore])
+  @@index([popularity])
+  @@index([category, currentBest])
+  @@index([bodyShape])
+  @@index([topWood])
+  @@index([pickupConfig])
+  @@index([madeIn])
+  @@index([year])
+}
+
+model GuitarImage {
+  id        String   @id @default(cuid())
+  guitarId  String
+  url       String
+  publicId  String?
+  alt       String?
+  width     Int?
+  height    Int?
+  blurData  String?
+  is360     Boolean  @default(false)
+  position  Int      @default(0)
+  sourceUrl String?
+  createdAt DateTime @default(now())
+
+  guitar Guitar @relation(fields: [guitarId], references: [id], onDelete: Cascade)
+
+  @@unique([guitarId, url])
+  @@index([guitarId, position])
+}
+
+model GuitarVideo {
+  id         String   @id @default(cuid())
+  guitarId   String
+  provider   String   @default("youtube")
+  videoId    String
+  title      String?
+  channel    String?
+  durationS  Int?
+  position   Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  guitar Guitar @relation(fields: [guitarId], references: [id], onDelete: Cascade)
+
+  @@unique([guitarId, videoId])
+}
+
+model GuitarDocument {
+  id        String   @id @default(cuid())
+  guitarId  String
+  kind      String   @default("manual")
+  title     String
+  url       String
+  sizeBytes Int?
+  createdAt DateTime @default(now())
+
+  guitar Guitar @relation(fields: [guitarId], references: [id], onDelete: Cascade)
+
+  @@unique([guitarId, url])
+}
+
+model GuitarFaq {
+  id       String @id @default(cuid())
+  guitarId String
+  question String
+  answer   String @db.Text
+  position Int    @default(0)
+
+  guitar Guitar @relation(fields: [guitarId], references: [id], onDelete: Cascade)
+
+  @@index([guitarId, position])
+}
+
+model Retailer {
+  id           String   @id @default(cuid())
+  slug         String   @unique
+  name         String
+  websiteUrl   String
+  logoUrl      String?
+  countryCode  String?
+  affiliateTag String?
+  createdAt    DateTime @default(now())
+
+  offers PriceOffer[]
+}
+
+model PriceOffer {
+  id           String       @id @default(cuid())
+  guitarId     String
+  retailerId   String
+  url          String
+  price        Decimal      @db.Decimal(10, 2)
+  currency     String       @default("USD")
+  availability Availability @default(UNKNOWN)
+  condition    String       @default("new")
+  shippingNote String?
+  checkedAt    DateTime     @default(now())
+
+  guitar   Guitar   @relation(fields: [guitarId], references: [id], onDelete: Cascade)
+  retailer Retailer @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+
+  @@unique([guitarId, retailerId, condition])
+  @@index([guitarId, price])
+}
+
+model PriceHistory {
+  id        String   @id @default(cuid())
+  guitarId  String
+  price     Decimal  @db.Decimal(10, 2)
+  currency  String   @default("USD")
+  recordedAt DateTime @default(now())
+
+  @@index([guitarId, recordedAt])
+}
+
+// --------------------------------------------------------------------------
+// Editorial
+// --------------------------------------------------------------------------
+
+model Article {
+  id          String       @id @default(cuid())
+  slug        String       @unique
+  type        ArticleType
+  title       String
+  excerpt     String?      @db.Text
+  body        String       @db.Text
+  coverUrl    String?
+  coverAlt    String?
+  readMinutes Int?
+  tags        String[]     @default([])
+  state       PublishState @default(DRAFT)
+  publishedAt DateTime?
+  authorId    String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  author  User?           @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  guitars ArticleGuitar[]
+
+  @@index([type, state, publishedAt])
+}
+
+model ArticleGuitar {
+  articleId String
+  guitarId  String
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  guitar  Guitar  @relation(fields: [guitarId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, guitarId])
+}
+
+model UserReview {
+  id        String   @id @default(cuid())
+  guitarId  String
+  userId    String?
+  authorName String?
+  rating    Int
+  title     String?
+  body      String   @db.Text
+  isApproved Boolean @default(false)
+  createdAt DateTime @default(now())
+
+  guitar Guitar @relation(fields: [guitarId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([guitarId, isApproved])
+}
+
+model Ranking {
+  id          String     @id @default(cuid())
+  key         RankingKey @unique
+  slug        String     @unique
+  title        String
+  subtitle    String?
+  description String?    @db.Text
+  category    Category?
+  updatedAt   DateTime   @updatedAt
+
+  entries RankingEntry[]
+}
+
+model RankingEntry {
+  id        String  @id @default(cuid())
+  rankingId String
+  guitarId  String
+  position  Int
+  note      String? @db.Text
+  score     Decimal? @db.Decimal(4, 2)
+
+  ranking Ranking @relation(fields: [rankingId], references: [id], onDelete: Cascade)
+  guitar  Guitar  @relation(fields: [guitarId], references: [id], onDelete: Cascade)
+
+  @@unique([rankingId, guitarId])
+  @@index([rankingId, position])
+}
+
+// --------------------------------------------------------------------------
+// ETL provenance
+// --------------------------------------------------------------------------
+
+model Source {
+  id          String     @id @default(cuid())
+  slug        String     @unique
+  name        String
+  kind        SourceKind
+  baseUrl     String
+  robotsUrl   String?
+  enabled     Boolean    @default(true)
+  trustWeight Int        @default(50)
+  rateLimitMs Int        @default(1200)
+  notes       String?    @db.Text
+  createdAt   DateTime   @default(now())
+
+  records SourceRecord[]
+  jobs    CrawlJob[]
+}
+
+/// One raw payload from one source. `fingerprint` deduplicates re-crawls and
+/// `normalized` holds the mapped-but-not-yet-merged product shape.
+model SourceRecord {
+  id          String   @id @default(cuid())
+  sourceId    String
+  guitarId    String?
+  externalId  String?
+  url         String
+  fingerprint String
+  raw         Json
+  normalized  Json?
+  confidence  Int      @default(0)
+  fetchedAt   DateTime @default(now())
+  mergedAt    DateTime?
+
+  source Source  @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  guitar Guitar? @relation(fields: [guitarId], references: [id], onDelete: SetNull)
+
+  @@unique([sourceId, fingerprint])
+  @@index([guitarId])
+  @@index([mergedAt])
+}
+
+model CrawlJob {
+  id         String    @id @default(cuid())
+  sourceId   String?
+  target     String
+  status     JobStatus @default(QUEUED)
+  itemsFound Int       @default(0)
+  itemsNew   Int       @default(0)
+  itemsUpdated Int     @default(0)
+  itemsFailed Int      @default(0)
+  startedAt  DateTime?
+  finishedAt DateTime?
+  error      String?   @db.Text
+  createdAt  DateTime  @default(now())
+
+  source Source?    @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  logs   CrawlLog[]
+
+  @@index([status, createdAt])
+}
+
+model CrawlLog {
+  id        String   @id @default(cuid())
+  jobId     String
+  level     LogLevel @default(INFO)
+  message   String   @db.Text
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  job CrawlJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId, createdAt])
+}
+
+// --------------------------------------------------------------------------
+// Auth (Better Auth compatible) + ops
+// --------------------------------------------------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  role          Role      @default(USER)
+  banned        Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  sessions    Session[]
+  accounts    Account[]
+  articles    Article[]
+  userReviews UserReview[]
+  auditLogs   AuditLog[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  userId                String
+  accountId             String
+  providerId            String
+  accessToken           String?
+  refreshToken          String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  idToken               String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([identifier])
+}
+
+model AuditLog {
+  id       String   @id @default(cuid())
+  userId   String?
+  action   String
+  entity   String
+  entityId String?
+  diff     Json?
+  ip       String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entity, entityId])
+  @@index([createdAt])
+}
+
+model PageView {
+  id       String   @id @default(cuid())
+  path     String
+  guitarId String?
+  referrer String?
+  country  String?
+  day      DateTime @db.Date
+  count    Int      @default(1)
+
+  @@unique([path, day])
+  @@index([day])
+}
