@@ -1,80 +1,45 @@
 import type { Category } from "@prisma/client"
 
 export type CategoryMeta = {
-  key: Category
   slug: string
   label: string
-  blurb: string
+  plural: string
+  icon: string
+  description: string
 }
 
-/**
- * Single source of truth for category routing. Nav, listing routes, sitemap and
- * static params all derive from this array (DRY).
- */
-export const CATEGORIES: CategoryMeta[] = [
-  { key: "ACOUSTIC", slug: "acoustic", label: "Acoustic", blurb: "Dreadnought, OM, grand auditorium and parlour steel-strings." },
-  { key: "ELECTRIC", slug: "electric", label: "Electric", blurb: "Solidbody, semi-hollow and hollowbody electrics." },
-  { key: "BASS", slug: "bass", label: "Bass", blurb: "4, 5 and 6 string electric and acoustic basses." },
-  { key: "CLASSICAL", slug: "classical", label: "Classical", blurb: "Nylon-string classical and flamenco instruments." },
-  { key: "UKULELE", slug: "ukulele", label: "Ukulele", blurb: "Soprano, concert, tenor and baritone ukuleles." },
-  { key: "AMPLIFIER", slug: "amplifier", label: "Amplifier", blurb: "Tube, solid-state and modelling amps and cabinets." },
-  { key: "PEDAL", slug: "pedal", label: "Pedal", blurb: "Drive, modulation, delay, reverb and multi-FX." },
-  { key: "ACCESSORY", slug: "accessories", label: "Accessories", blurb: "Strings, cases, tuners, capos, straps and cables." },
-]
-
-export const categoryBySlug = (slug: string) => CATEGORIES.find((c) => c.slug === slug)
-
-export const categoryMeta = (key: Category) =>
-  CATEGORIES.find((c) => c.key === key) ?? CATEGORIES[0]!
-
-export type NavItem = {
-  label: string
-  href: string
-  description?: string
-  children?: NavItem[]
+const CATEGORY_MAP: Record<Category, CategoryMeta> = {
+  ACOUSTIC: { slug: "acoustic", label: "Acoustic", plural: "Acoustic Guitars", icon: "🎸", description: "Steel-string and folk acoustic guitars" },
+  ELECTRIC: { slug: "electric", label: "Electric", plural: "Electric Guitars", icon: "⚡", description: "Solid, semi-hollow and hollow-body electrics" },
+  BASS: { slug: "bass", label: "Bass", plural: "Bass Guitars", icon: "🎵", description: "4, 5 and 6-string bass guitars" },
+  CLASSICAL: { slug: "classical", label: "Classical", plural: "Classical Guitars", icon: "🎼", description: "Nylon-string classical and flamenco guitars" },
+  UKULELE: { slug: "ukulele", label: "Ukulele", plural: "Ukuleles", icon: "🌺", description: "Soprano, concert, tenor and baritone ukuleles" },
+  AMPLIFIER: { slug: "amplifiers", label: "Amplifier", plural: "Amplifiers", icon: "🔊", description: "Guitar and bass amplifiers" },
+  PEDAL: { slug: "pedals", label: "Pedal", plural: "Effects Pedals", icon: "🎛️", description: "Distortion, delay, reverb and other effects" },
+  ACCESSORY: { slug: "accessories", label: "Accessory", plural: "Accessories", icon: "🎒", description: "Strings, picks, capos, straps and more" },
 }
 
-export const mainNav: NavItem[] = [
-  { label: "Home", href: "/" },
-  { label: "Brands", href: "/brands", description: "Every manufacturer we track" },
-  {
-    label: "Categories",
-    href: "/guitars",
-    children: CATEGORIES.map((c) => ({ label: c.label, href: `/c/${c.slug}`, description: c.blurb })),
-  },
-  { label: "Compare", href: "/compare", description: "Up to 5 instruments side by side" },
-  { label: "Top Ranking", href: "/rankings", description: "Curated best-of lists" },
-  { label: "Reviews", href: "/reviews" },
-  { label: "Guides", href: "/guides" },
-  { label: "News", href: "/news" },
-  { label: "Deals", href: "/deals" },
-]
+export function categoryMeta(category: Category): CategoryMeta {
+  return CATEGORY_MAP[category] ?? {
+    slug: category.toLowerCase(),
+    label: category,
+    plural: `${category}s`,
+    icon: "🎸",
+    description: "",
+  }
+}
 
-export const footerNav: { title: string; items: NavItem[] }[] = [
-  { title: "Catalog", items: CATEGORIES.map((c) => ({ label: c.label, href: `/c/${c.slug}` })) },
-  {
-    title: "Discover",
-    items: [
-      { label: "All guitars", href: "/guitars" },
-      { label: "Brands", href: "/brands" },
-      { label: "Rankings", href: "/rankings" },
-      { label: "Compare", href: "/compare" },
-      { label: "Deals", href: "/deals" },
-    ],
-  },
-  {
-    title: "Editorial",
-    items: [
-      { label: "Reviews", href: "/reviews" },
-      { label: "Buying guides", href: "/guides" },
-      { label: "News", href: "/news" },
-    ],
-  },
-  {
-    title: "About",
-    items: [
-      { label: "How we score", href: "/how-we-score" },
-      { label: "Data sources", href: "/data-sources" },
-    ],
-  },
+export function categoryFromSlug(slug: string): Category | null {
+  const entry = Object.entries(CATEGORY_MAP).find(([, meta]) => meta.slug === slug)
+  return (entry?.[0] as Category) ?? null
+}
+
+export const CATEGORIES = Object.values(CATEGORY_MAP)
+
+export const NAV_LINKS = [
+  { href: "/guitars", label: "Browse" },
+  { href: "/compare", label: "Compare" },
+  { href: "/rankings", label: "Rankings" },
+  { href: "/brands", label: "Brands" },
+  { href: "/guides", label: "Guides" },
 ]

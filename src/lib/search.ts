@@ -1,5 +1,11 @@
-import { MeiliSearch, type Index } from "meilisearch"
-import { env, features } from "./env"
+import { MeiliSearch } from "meilisearch"
+
+export const meilisearch = new MeiliSearch({
+  host: process.env.MEILISEARCH_HOST ?? "http://localhost:7700",
+  apiKey: process.env.MEILISEARCH_MASTER_KEY ?? "masterKeyChangeMe",
+})
+
+export const GUITAR_INDEX = "guitars"
 
 export type GuitarDocument = {
   id: string
@@ -40,110 +46,36 @@ export type GuitarDocument = {
   summary: string | null
 }
 
-export const SEARCHABLE_ATTRIBUTES = [
-  "name",
-  "brand",
-  "model",
-  "series",
-  "subtype",
-  "bodyShape",
-  "topWood",
-  "pickupConfig",
-  "color",
-  "summary",
-]
-
-export const FILTERABLE_ATTRIBUTES = [
-  "brandSlug",
-  "categorySlug",
-  "category",
-  "series",
-  "bodyShape",
-  "topWood",
-  "backWood",
-  "neckWood",
-  "fingerboard",
-  "pickupConfig",
-  "finish",
-  "color",
-  "madeIn",
-  "year",
-  "frets",
-  "strings",
-  "scaleLengthIn",
-  "weightKg",
-  "price",
-  "expertScore",
-  "userScore",
-  "availability",
-  "handedness",
-  "cutaway",
-  "electroAcoustic",
-]
-
-export const SORTABLE_ATTRIBUTES = [
-  "price",
-  "msrp",
-  "expertScore",
-  "userScore",
-  "valueScore",
-  "popularity",
-  "year",
-]
-
-let client: MeiliSearch | null = null
-
-export function searchClient(): MeiliSearch | null {
-  if (!features.meilisearch) return null
-  client ??= new MeiliSearch({
-    host: env.MEILISEARCH_HOST!,
-    apiKey: env.MEILISEARCH_ADMIN_KEY || env.MEILISEARCH_MASTER_KEY || undefined,
-  })
-  return client
-}
-
-export function guitarIndex(): Index<GuitarDocument> | null {
-  const c = searchClient()
-  return c ? c.index<GuitarDocument>(env.MEILISEARCH_INDEX) : null
-}
-
-/** Idempotent index configuration. Safe to call on every reindex run. */
 export async function ensureIndex(): Promise<void> {
-  const c = searchClient()
-  if (!c) return
-  const uid = env.MEILISEARCH_INDEX
   try {
-    await c.getIndex(uid)
+    await meilisearch.getIndex(GUITAR_INDEX)
   } catch {
-    const task = await c.createIndex(uid, { primaryKey: "id" })
-    await c.waitForTask(task.taskUid)
+    await meilisearch.createIndex(GUITAR_INDEX, { primaryKey: "id" })
+    await meilisearch.index(GUITAR_INDEX).updateSettings({
+      searchableAttributes: ["name", "brand", "model", "series", "bodyShape", "topWood", "summary"],
+      filterableAttributes: [
+        "category", "brandSlug", "madeIn", "year", "frets", "strings",
+        "price", "expertScore", "userScore", "availability", "handedness",
+        "cutaway", "electroAcoustic", "pickupConfig", "topWood", "bodyShape",
+      ],
+      sortableAttributes: ["price", "expertScore", "userScore", "valueScore", "year", "popularity"],
+      pagination: { maxTotalHits: 5000 },
+    })
   }
-  const index = c.index<GuitarDocument>(uid)
-  await index.updateSettings({
-    searchableAttributes: SEARCHABLE_ATTRIBUTES,
-    filterableAttributes: FILTERABLE_ATTRIBUTES,
-    sortableAttributes: SORTABLE_ATTRIBUTES,
-    displayedAttributes: ["*"],
-    rankingRules: ["words", "typo", "proximity", "attribute", "sort", "exactness", "popularity:desc"],
-    typoTolerance: {
-      enabled: true,
-      minWordSizeForTypos: { oneTypo: 4, twoTypos: 8 },
-    },
-    faceting: { maxValuesPerFacet: 300 },
-    pagination: { maxTotalHits: 5000 },
-  })
 }
 
 export async function indexDocuments(docs: GuitarDocument[]): Promise<number> {
-  const index = guitarIndex()
-  if (!index || docs.length === 0) return 0
-  const task = await index.addDocuments(docs, { primaryKey: "id" })
-  await searchClient()!.waitForTask(task.taskUid, { timeOutMs: 120_000 })
+  if (docs.length === 0) return 0
+  await meilisearch.index(GUITAR_INDEX).addDocuments(docs)
   return docs.length
 }
 
-export async function removeDocuments(ids: string[]): Promise<void> {
-  const index = guitarIndex()
-  if (!index || ids.length === 0) return
-  await index.deleteDocuments(ids)
+export async function searchGuitars(query: string, filter?: string, sort?: string[], limit = 24, offset = 0) {
+  return meilisearch.index(GUITAR_INDEX).search(query, {
+    filter,
+    sort,
+    limit,
+    offset,
+    attributesToHighlight: ["name", "brand"],
+  })
 }
