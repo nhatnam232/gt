@@ -11,19 +11,9 @@ export function GET(request: NextRequest) {
 
   return new ImageResponse(
     (
-      <div
-        style={{
-          width: "100%",
-          height: "100%",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "flex-start",
-          justifyContent: "flex-end",
-          padding: "60px",
-          background: "linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)",
-          fontFamily: "sans-serif",
-        }}
-      >
+      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column",
+        alignItems: "flex-start", justifyContent: "flex-end", padding: "60px",
+        background: "linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)", fontFamily: "sans-serif" }}>
         <div style={{ position: "absolute", top: 48, left: 60, display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 36, height: 36, borderRadius: 8, background: "#6366f1", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <span style={{ color: "white", fontSize: 20 }}>🎸</span>

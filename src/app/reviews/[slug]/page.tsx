@@ -38,26 +38,26 @@ export default async function ReviewDetailPage({ params }: { params: Promise<{ s
         <ArrowLeft className="size-4" /> All reviews
       </Link>
       <header className="mt-8">
-        {article.tags?.[0] ? (
+        {article.tags?.[0] && (
           <span className="eyebrow flex items-center gap-1.5"><Tag className="size-3.5" />{article.tags[0]}</span>
-        ) : null}
+        )}
         <h1 className="mt-3 text-3xl font-semibold leading-tight text-balance">{article.title}</h1>
         <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-          {article.author ? <span>By {article.author}</span> : null}
+          {article.author && <span>By {article.author}</span>}
           <span className="flex items-center gap-1.5"><Clock className="size-3.5" />{article.readMinutes} min read</span>
           <time dateTime={article.publishedAt}>{formatDate(article.publishedAt)}</time>
         </div>
       </header>
-      {article.coverUrl ? (
+      {article.coverUrl && (
         <div className="relative mt-8 aspect-[16/9] overflow-hidden rounded-2xl">
           <Image src={article.coverUrl} alt={article.coverAlt ?? article.title} fill className="object-cover" />
         </div>
-      ) : null}
-      {article.excerpt ? (
+      )}
+      {article.excerpt && (
         <p className="mt-8 text-lg leading-relaxed text-muted-foreground">{article.excerpt}</p>
-      ) : null}
+      )}
       <div className="prose-editorial mt-8">
-        <p className="text-muted-foreground">[Full review content loads here from CMS / rich text field]</p>
+        <p className="text-muted-foreground">[Full review content loads here]</p>
       </div>
     </article>
   )

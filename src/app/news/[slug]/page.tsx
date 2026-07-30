@@ -32,14 +32,14 @@ export default async function NewsDetailPage({ params }: { params: Promise<{ slu
       <header className="mt-8">
         <h1 className="text-3xl font-semibold leading-tight text-balance">{article.title}</h1>
         <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-          {article.author ? <span>By {article.author}</span> : null}
+          {article.author && <span>By {article.author}</span>}
           <span className="flex items-center gap-1.5"><Clock className="size-3.5" />{article.readMinutes} min read</span>
           <time dateTime={article.publishedAt}>{formatDate(article.publishedAt)}</time>
         </div>
       </header>
       <div className="prose-editorial mt-8">
-        {article.excerpt ? <p className="text-lg text-muted-foreground">{article.excerpt}</p> : null}
-        <p className="mt-6 text-muted-foreground">[Full article content loads here]</p>
+        {article.excerpt && <p className="text-lg text-muted-foreground">{article.excerpt}</p>}
+        <p className="mt-6 text-muted-foreground">[Full article loads here]</p>
       </div>
     </article>
   )

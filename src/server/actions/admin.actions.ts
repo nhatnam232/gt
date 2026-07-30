@@ -8,7 +8,6 @@ import { redirect } from "next/navigation"
 
 export async function upsertGuitar(formData: FormData) {
   await requireRole("EDITOR")
-
   const id = formData.get("id") as string | null
   const name = (formData.get("name") as string).trim()
   const brandId = formData.get("brandId") as string
@@ -19,21 +18,15 @@ export async function upsertGuitar(formData: FormData) {
   const summary = (formData.get("summary") as string | null)?.trim() || null
   const imageUrl = (formData.get("imageUrl") as string | null)?.trim() || null
   const isPublished = formData.get("isPublished") === "true"
-
-  const slug = slugify(`${await getBrandSlug(brandId)}-${name}`)
-
+  const brand = await prisma.brand.findUnique({ where: { id: brandId }, select: { slug: true } })
+  const slug = slugify(`${brand?.slug ?? "unknown"}-${name}`)
   const data = {
-    name,
-    brandId,
+    name, brandId,
     category: category as "ACOUSTIC" | "ELECTRIC" | "BASS" | "CLASSICAL" | "UKULELE" | "AMPLIFIER" | "PEDAL" | "ACCESSORY",
-    model,
-    msrp,
-    year,
-    summary,
+    model, msrp, year, summary,
     images: imageUrl ? [imageUrl] : undefined,
     isPublished,
   }
-
   if (id) {
     await prisma.guitar.update({ where: { id }, data })
     revalidatePath("/admin/guitars")
@@ -42,13 +35,7 @@ export async function upsertGuitar(formData: FormData) {
     await prisma.guitar.create({ data: { ...data, slug } })
     revalidatePath("/admin/guitars")
   }
-
   redirect("/admin/guitars")
-}
-
-async function getBrandSlug(brandId: string): Promise<string> {
-  const brand = await prisma.brand.findUnique({ where: { id: brandId }, select: { slug: true } })
-  return brand?.slug ?? "unknown"
 }
 
 export async function moderateReview(reviewId: string, approve: boolean) {
