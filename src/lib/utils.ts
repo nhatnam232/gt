@@ -6,13 +6,29 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatDate(iso: string, opts?: Intl.DateTimeFormatOptions): string {
+export function formatDate(
+  value: string | number | Date | null | undefined,
+  opts?: Intl.DateTimeFormatOptions,
+): string {
+  if (value === null || value === undefined) return ""
+  const date = value instanceof Date ? value : new Date(value)
+  if (isNaN(date.getTime())) return ""
   return new Intl.DateTimeFormat("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",
     ...opts,
-  }).format(new Date(iso))
+  }).format(date)
+}
+
+export function formatNumber(
+  value: number | string | Decimal | null | undefined,
+  opts?: Intl.NumberFormatOptions,
+): string {
+  if (value === null || value === undefined) return "0"
+  const num = Number(value)
+  if (isNaN(num)) return "0"
+  return new Intl.NumberFormat("en-US", opts).format(num)
 }
 
 export function formatPrice(amount: number | string | Decimal | null | undefined, currency = "USD"): string {
