@@ -5,6 +5,9 @@ import { headers } from "next/headers"
 import { auth } from "@/lib/auth"
 import { revalidatePath } from "next/cache"
 
+/** Fields the review form can highlight inline. */
+export type ReviewFieldErrors = Partial<Record<"authorName" | "rating" | "title" | "body", string>>
+
 /**
  * State shape returned by `submitReview`, designed for use with React's
  * `useActionState` hook in `components/guitar/review-form.tsx`.
@@ -12,6 +15,7 @@ import { revalidatePath } from "next/cache"
 export type ReviewActionState = {
   status: "idle" | "success" | "error"
   message?: string
+  fieldErrors?: ReviewFieldErrors
 }
 
 export const initialReviewActionState: ReviewActionState = { status: "idle" }
@@ -33,8 +37,18 @@ export async function submitReview(
   const pros = (formData.get("pros") as string)?.trim() || null
   const cons = (formData.get("cons") as string)?.trim() || null
 
-  if (!guitarId || rating < 1 || rating > 10) {
-    return { status: "error", message: "Invalid review data. Rating must be between 1 and 10." }
+  const fieldErrors: ReviewFieldErrors = {}
+  if (!Number.isFinite(rating) || rating < 1 || rating > 10) {
+    fieldErrors.rating = "Rating must be between 1 and 10."
+  }
+  if (body && body.length < 20) {
+    fieldErrors.body = "Please write at least 20 characters."
+  }
+  if (!guitarId) {
+    return { status: "error", message: "Missing guitar reference." }
+  }
+  if (Object.keys(fieldErrors).length > 0) {
+    return { status: "error", message: "Please fix the highlighted fields.", fieldErrors }
   }
 
   await prisma.userReview.upsert({
