@@ -4,19 +4,17 @@ import { useState } from "react"
 import Link from "next/link"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import type { GuitarQuery, Paginated, GuitarCardDto } from "@/domain/guitar/types"
+import { bestPrice, primaryImage, toNumber } from "@/domain/guitar/view"
 import type { FacetSet } from "@/server/repositories/facet.repository"
 import { serializeGuitarQuery } from "@/domain/guitar/query"
-import { cn, formatNumber } from "@/lib/utils"
+import { formatNumber } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { GuitarCard } from "@/components/guitar/guitar-card"
-import { GuitarGridSkeleton } from "@/components/ui/skeleton"
 import { FilterSidebar } from "@/components/guitar/filter-sidebar"
 import { SortBar } from "@/components/guitar/sort-bar"
 
 function pageUrl(query: GuitarQuery, page: number): string {
-  const base = query.category
-    ? `/c/${query.category.toLowerCase()}`
-    : "/guitars"
+  const base = query.category ? `/c/${query.category.toLowerCase()}` : "/guitars"
   const qs = serializeGuitarQuery({ ...query, page })
   return qs ? `${base}?${qs}` : base
 }
@@ -65,10 +63,7 @@ export function GuitarGrid({
 
         {/* Pagination */}
         {result.totalPages > 1 ? (
-          <nav
-            aria-label="Pagination"
-            className="mt-10 flex items-center justify-center gap-2"
-          >
+          <nav aria-label="Pagination" className="mt-10 flex items-center justify-center gap-2">
             {query.page > 1 ? (
               <Button asChild variant="outline" size="sm" className="gap-1">
                 <Link href={pageUrl(query, query.page - 1)}>
@@ -94,17 +89,21 @@ export function GuitarGrid({
 }
 
 function GuitarListRow({ guitar }: { guitar: GuitarCardDto }) {
+  const image = primaryImage(guitar)
+  const price = bestPrice(guitar)
+  const expertScore = toNumber(guitar.expertScore)
+
   return (
     <article className="hairline card-hover flex gap-4 rounded-2xl border bg-card p-4">
       <Link
         href={`/guitars/${guitar.slug}`}
         className="relative size-[5.5rem] shrink-0 overflow-hidden rounded-xl bg-muted"
       >
-        {guitar.image ? (
+        {image ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={guitar.image.url}
-            alt={guitar.image.alt}
+            src={image.url}
+            alt={image.alt ?? guitar.name}
             className="size-full object-contain p-2"
             loading="lazy"
           />
@@ -120,19 +119,15 @@ function GuitarListRow({ guitar }: { guitar: GuitarCardDto }) {
           </Link>
         </h3>
         <p className="mt-1 text-xs text-muted-foreground">
-          {[guitar.bodyShape, guitar.topWood, guitar.madeIn].filter(Boolean).join(" · ")}
+          {[guitar.bodyShape, guitar.topWood, guitar.madeIn].filter(Boolean).join(" \u00b7 ")}
         </p>
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1">
-        {guitar.price ? (
-          <span className="text-[15px] font-semibold tabular-nums">
-            ${guitar.price.toLocaleString()}
-          </span>
+        {price ? (
+          <span className="text-[15px] font-semibold tabular-nums">${price.toLocaleString()}</span>
         ) : null}
-        {guitar.expertScore ? (
-          <span className="text-xs text-muted-foreground">
-            Score: {guitar.expertScore.toFixed(1)}
-          </span>
+        {expertScore ? (
+          <span className="text-xs text-muted-foreground">Score: {expertScore.toFixed(1)}</span>
         ) : null}
       </div>
     </article>
