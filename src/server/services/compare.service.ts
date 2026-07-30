@@ -30,24 +30,45 @@ export type CompareResult = {
 const HIGHER_IS_BETTER = new Set(["expertScore", "userScore", "valueScore", "frets"])
 const LOWER_IS_BETTER = new Set(["currentBest", "msrp", "weightKg"])
 
+/** Prisma Decimal | number | null -> number | null. */
+function toNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null
+  const n = Number(value)
+  return Number.isFinite(n) ? n : null
+}
+
+/** Cheapest tracked offer, falling back to MSRP. */
+function bestPrice(guitar: GuitarDetailDto): number | null {
+  const offers = guitar.prices ?? []
+  const prices = offers.map((offer) => toNumber(offer.price)).filter((n): n is number => n !== null)
+  if (prices.length > 0) return Math.min(...prices)
+  return toNumber(guitar.msrp)
+}
+
+function currencyOf(guitar: GuitarDetailDto): string {
+  return guitar.prices?.[0]?.currency ?? "USD"
+}
+
 function readValue(guitar: GuitarDetailDto, field: SpecField): string | number | boolean | null {
-  if (field.json) {
-    const value = guitar.specs?.[field.key]
-    return value === undefined ? null : value
-  }
+  // The schema has no free-form JSON spec column, so JSON-backed fields are
+  // simply not available yet.
+  if (field.json) return null
+
   switch (field.key) {
     case "brand":
       return guitar.brand.name
     case "currentBest":
-      return guitar.price
+      return bestPrice(guitar)
     case "category":
       return guitar.category
-    case "accessories":
-      return guitar.accessories.length ? guitar.accessories.join(", ") : null
     default: {
       const value = (guitar as unknown as Record<string, unknown>)[field.key]
       if (value === undefined || value === null) return null
-      if (typeof value === "object") return null
+      if (typeof value === "object") {
+        // Prisma Decimal columns are objects but are meaningfully numeric.
+        const n = toNumber(value)
+        return n
+      }
       return value as string | number | boolean
     }
   }
@@ -94,7 +115,7 @@ export const compareService = {
     }
 
     const categories = new Set(guitars.map((g) => g.category))
-    const currency = guitars[0]!.currency
+    const currency = currencyOf(guitars[0]!)
 
     let differingCount = 0
     let identicalCount = 0
@@ -108,7 +129,7 @@ export const compareService = {
         .map<CompareRow>((field) => {
           const cells = guitars.map((guitar) => {
             const raw = readValue(guitar, field)
-            return { raw, display: display(raw, field, guitar.currency || currency) }
+            return { raw, display: display(raw, field, currencyOf(guitar) || currency) }
           })
           const first = cells[0]!.display
           const differs = cells.some((cell) => cell.display !== first)
