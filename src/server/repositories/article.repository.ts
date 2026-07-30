@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma"
-import type { Prisma } from "@prisma/client"
+import { Prisma } from "@prisma/client"
 
 export type ArticleCard = {
   slug: string
@@ -14,18 +14,39 @@ export type ArticleCard = {
   tags: string[]
 }
 
+/**
+ * Read paths run during `next build` (generateStaticParams, static page data)
+ * against whatever database DATABASE_URL points at. If that database has not
+ * been migrated yet, Prisma throws P2021 ("table does not exist") and the whole
+ * build aborts. Treat a missing table as "no articles yet" so the site can be
+ * built and deployed before content exists; every other error still propagates.
+ */
+async function readOrEmpty<T>(read: () => Promise<T[]>): Promise<T[]> {
+  try {
+    return await read()
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2021") {
+      console.warn("[article.repository] articles table is missing; returning no rows")
+      return []
+    }
+    throw error
+  }
+}
+
 export const articleRepository = {
   async list(type?: string, limit = 20) {
-    return prisma.article.findMany({
-      where: { isPublished: true, ...(type ? { type } : {}) },
-      orderBy: { publishedAt: "desc" },
-      take: limit,
-      select: {
-        slug: true, type: true, title: true, excerpt: true,
-        coverUrl: true, coverAlt: true, authorName: true,
-        readMinutes: true, publishedAt: true, tags: true,
-      },
-    })
+    return readOrEmpty(() =>
+      prisma.article.findMany({
+        where: { isPublished: true, ...(type ? { type } : {}) },
+        orderBy: { publishedAt: "desc" },
+        take: limit,
+        select: {
+          slug: true, type: true, title: true, excerpt: true,
+          coverUrl: true, coverAlt: true, authorName: true,
+          readMinutes: true, publishedAt: true, tags: true,
+        },
+      }),
+    )
   },
 
   async findBySlug(slug: string) {
@@ -33,10 +54,12 @@ export const articleRepository = {
   },
 
   async slugs() {
-    const rows = await prisma.article.findMany({
-      where: { isPublished: true },
-      select: { slug: true, type: true, updatedAt: true },
-    })
+    const rows = await readOrEmpty(() =>
+      prisma.article.findMany({
+        where: { isPublished: true },
+        select: { slug: true, type: true, updatedAt: true },
+      }),
+    )
     return rows.map((r) => ({ slug: r.slug, type: r.type, updatedAt: r.updatedAt }))
   },
 
