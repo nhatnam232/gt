@@ -14,7 +14,7 @@ export type SearchHit = {
   currency: string
   expertScore: number | null
   image: string | null
-  /** Meilisearch-formatted title containing <mark> highlights. */
+  /** Title containing <mark> highlights (already HTML-escaped). */
   highlighted: string
 }
 
@@ -25,13 +25,13 @@ export type SearchResponse = {
   engine: "meilisearch" | "postgres"
 }
 
-function escapeMarks(value: string): string {
+function escapeHtml(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
 }
 
 /** Highlight query terms in a title for the Postgres fallback path. */
 function highlight(text: string, query: string): string {
-  const safe = escapeMarks(text)
+  const safe = escapeHtml(text)
   const terms = query
     .split(/\s+/)
     .map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
@@ -50,8 +50,9 @@ export const searchService = {
     const term = q.trim().slice(0, 120)
     const limit = Math.min(options?.limit ?? 8, 30)
     const started = Date.now()
+    const engine = features.meilisearch ? "meilisearch" : "postgres"
 
-    if (!term) return { hits: [], total: 0, tookMs: 0, engine: features.meilisearch ? "meilisearch" : "postgres" }
+    if (!term) return { hits: [], total: 0, tookMs: 0, engine }
 
     const index = guitarIndex()
     if (index) {
@@ -60,13 +61,13 @@ export const searchService = {
         attributesToHighlight: ["name", "brand"],
         highlightPreTag: "<mark>",
         highlightPostTag: "</mark>",
-        filter: options?.category ? [`categorySlug = "${options.category.replace(/"/g, "")}"`] : undefined,
+        filter: options?.category
+          ? [`categorySlug = "${options.category.replace(/[^a-z0-9-]/gi, "")}"`]
+          : undefined,
       })
       return {
         hits: result.hits.map((hit) => {
-          const doc = hit as GuitarDocument & {
-            _formatted?: Partial<GuitarDocument>
-          }
+          const doc = hit as GuitarDocument & { _formatted?: Partial<GuitarDocument> }
           return {
             slug: doc.slug,
             name: doc.name,
@@ -74,10 +75,10 @@ export const searchService = {
             category: doc.category,
             categorySlug: doc.categorySlug,
             price: doc.price,
-            currency: "USD",
+            currency: doc.currency ?? "USD",
             expertScore: doc.expertScore,
             image: doc.image,
-            highlighted: doc._formatted?.name ?? escapeMarks(doc.name),
+            highlighted: doc._formatted?.name ?? escapeHtml(doc.name),
           }
         }),
         total: result.estimatedTotalHits ?? result.hits.length,
@@ -105,7 +106,7 @@ export const searchService = {
         currency: true,
         expertScore: true,
         brand: { select: { name: true } },
-        images: { where: { isPrimary: true }, take: 1, select: { url: true } },
+        images: { orderBy: { position: "asc" }, take: 1, select: { url: true } },
       },
     })
 

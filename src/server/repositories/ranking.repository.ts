@@ -6,7 +6,7 @@ import type { GuitarCardDto } from "@/domain/guitar/types"
 export type RankingEntryDto = {
   position: number
   score: number
-  rationale: string | null
+  note: string | null
   guitar: GuitarCardDto
 }
 
@@ -32,7 +32,7 @@ export const rankingRepository = {
               include: {
                 brand: { select: { slug: true, name: true } },
                 series: { select: { name: true } },
-                images: { where: { isPrimary: true }, take: 1 },
+                images: { orderBy: { position: "asc" }, take: 1 },
               },
             },
           },
@@ -53,7 +53,7 @@ export const rankingRepository = {
         return {
           position: entry.position,
           score: decimalToNumber(entry.score) ?? 0,
-          rationale: entry.rationale,
+          note: entry.note,
           guitar: {
             id: g.id,
             slug: g.slug,
@@ -79,7 +79,13 @@ export const rankingRepository = {
             valueScore: decimalToNumber(g.valueScore),
             availability: g.availability,
             image: image
-              ? { url: image.url, alt: image.alt ?? g.name, width: image.width, height: image.height }
+              ? {
+                  url: image.url,
+                  alt: image.alt ?? g.name,
+                  width: image.width,
+                  height: image.height,
+                  blurData: image.blurData,
+                }
               : null,
           },
         }
@@ -87,7 +93,9 @@ export const rankingRepository = {
     }
   },
 
-  async index(): Promise<{ slug: string; title: string; subtitle: string | null; count: number; updatedAt: string }[]> {
+  async index(): Promise<
+    { slug: string; title: string; subtitle: string | null; count: number; updatedAt: string }[]
+  > {
     const rows = await prisma.ranking.findMany({
       orderBy: { title: "asc" },
       select: {

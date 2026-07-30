@@ -5,9 +5,9 @@ export type BrandListItem = {
   name: string
   countryCode: string | null
   foundedYear: number | null
-  priceTier: string
+  priceTier: string | null
   logoUrl: string | null
-  featured: boolean
+  isFeatured: boolean
   guitarCount: number
 }
 
@@ -15,6 +15,7 @@ export type BrandDetail = BrandListItem & {
   id: string
   websiteUrl: string | null
   description: string | null
+  wikidataId: string | null
   series: { slug: string; name: string; guitarCount: number }[]
   updatedAt: string
 }
@@ -22,7 +23,7 @@ export type BrandDetail = BrandListItem & {
 export const brandRepository = {
   async list(): Promise<BrandListItem[]> {
     const rows = await prisma.brand.findMany({
-      orderBy: [{ featured: "desc" }, { name: "asc" }],
+      orderBy: [{ isFeatured: "desc" }, { name: "asc" }],
       select: {
         slug: true,
         name: true,
@@ -30,7 +31,7 @@ export const brandRepository = {
         foundedYear: true,
         priceTier: true,
         logoUrl: true,
-        featured: true,
+        isFeatured: true,
         _count: { select: { guitars: { where: { isPublished: true } } } },
       },
     })
@@ -40,7 +41,7 @@ export const brandRepository = {
   async featured(take = 12): Promise<BrandListItem[]> {
     const all = await brandRepository.list()
     return all
-      .filter((brand) => brand.featured)
+      .filter((brand) => brand.isFeatured)
       .sort((a, b) => b.guitarCount - a.guitarCount)
       .slice(0, take)
   },
@@ -69,9 +70,10 @@ export const brandRepository = {
       foundedYear: row.foundedYear,
       priceTier: row.priceTier,
       logoUrl: row.logoUrl,
-      featured: row.featured,
+      isFeatured: row.isFeatured,
       websiteUrl: row.websiteUrl,
       description: row.description,
+      wikidataId: row.wikidataId,
       guitarCount: row._count.guitars,
       series: row.series.map((s) => ({
         slug: s.slug,

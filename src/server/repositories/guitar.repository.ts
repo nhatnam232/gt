@@ -9,6 +9,14 @@ import type {
   Paginated,
 } from "@/domain/guitar/types"
 
+// The primary image is simply the lowest `position` - the ETL layer keeps the
+// hero shot at position 0, so no extra flag column is needed.
+const primaryImage = {
+  orderBy: { position: "asc" },
+  take: 1,
+  select: { url: true, alt: true, width: true, height: true, blurData: true },
+} satisfies Prisma.Guitar$imagesArgs
+
 const cardSelect = {
   id: true,
   slug: true,
@@ -32,11 +40,7 @@ const cardSelect = {
   availability: true,
   brand: { select: { slug: true, name: true } },
   series: { select: { name: true } },
-  images: {
-    where: { isPrimary: true },
-    take: 1,
-    select: { url: true, alt: true, width: true, height: true },
-  },
+  images: primaryImage,
 } satisfies Prisma.GuitarSelect
 
 type CardRow = Prisma.GuitarGetPayload<{ select: typeof cardSelect }>
@@ -68,7 +72,13 @@ export function toCardDto(row: CardRow): GuitarCardDto {
     valueScore: decimalToNumber(row.valueScore),
     availability: row.availability,
     image: image
-      ? { url: image.url, alt: image.alt ?? row.name, width: image.width, height: image.height }
+      ? {
+          url: image.url,
+          alt: image.alt ?? row.name,
+          width: image.width,
+          height: image.height,
+          blurData: image.blurData,
+        }
       : null,
   }
 }
@@ -199,7 +209,7 @@ export const guitarRepository = {
     where?: Prisma.GuitarWhereInput,
   ): Promise<GuitarCardDto[]> {
     const rows = await prisma.guitar.findMany({
-      where: { isPublished: true, [field]: { not: null }, ...where },
+      where: { isPublished: true, ...where },
       select: cardSelect,
       orderBy: [{ [field]: "desc" }, { userScoreCount: "desc" }],
       take,
@@ -213,17 +223,15 @@ export const guitarRepository = {
       include: {
         brand: { select: { slug: true, name: true } },
         series: { select: { name: true } },
-        images: { orderBy: [{ isPrimary: "desc" }, { position: "asc" }] },
+        images: { orderBy: { position: "asc" } },
         videos: { orderBy: { position: "asc" } },
         documents: true,
         faqs: { orderBy: { position: "asc" } },
         offers: {
-          where: { isActive: true },
           orderBy: { price: "asc" },
           include: { retailer: { select: { slug: true, name: true, websiteUrl: true } } },
         },
-        priceHistory: { orderBy: { recordedAt: "asc" }, take: 180 },
-        reviews: {
+        userReviews: {
           where: { isApproved: true },
           orderBy: { createdAt: "desc" },
           take: 30,
@@ -238,7 +246,18 @@ export const guitarRepository = {
     })
     if (!row) return null
 
-    const card = toCardDto({ ...row, images: row.images.slice(0, 1) } as CardRow)
+    // PriceHistory is intentionally relation-free (append-only time series), so
+    // it is fetched by id rather than included.
+    const history = await prisma.priceHistory.findMany({
+      where: { guitarId: row.id },
+      orderBy: { recordedAt: "asc" },
+      take: 180,
+    })
+
+    const card = toCardDto({
+      ...row,
+      images: row.images.slice(0, 1),
+    } as unknown as CardRow)
 
     return {
       ...card,
@@ -273,9 +292,15 @@ export const guitarRepository = {
         alt: img.alt ?? row.name,
         width: img.width,
         height: img.height,
-        isPrimary: img.isPrimary,
+        blurData: img.blurData,
+        is360: img.is360,
       })),
-      videos: row.videos.map((v) => ({ youtubeId: v.youtubeId, title: v.title })),
+      videos: row.videos.map((v) => ({
+        videoId: v.videoId,
+        provider: v.provider,
+        title: v.title,
+        channel: v.channel,
+      })),
       documents: row.documents.map((d) => ({ url: d.url, title: d.title, kind: d.kind })),
       faqs: row.faqs.map((f) => ({ question: f.question, answer: f.answer })),
       offers: row.offers.map((offer) => ({
@@ -285,24 +310,25 @@ export const guitarRepository = {
         currency: offer.currency,
         url: offer.url,
         availability: offer.availability,
-        shipping: decimalToNumber(offer.shipping),
+        condition: offer.condition,
+        shippingNote: offer.shippingNote,
         checkedAt: offer.checkedAt.toISOString(),
       })),
-      priceHistory: row.priceHistory.map((point) => ({
+      priceHistory: history.map((point) => ({
         date: point.recordedAt.toISOString(),
         price: decimalToNumber(point.price) ?? 0,
       })),
-      reviews: row.reviews.map((review) => ({
+      reviews: row.userReviews.map((review) => ({
         id: review.id,
         author: review.authorName ?? review.user?.name ?? "Verified owner",
-        rating: decimalToNumber(review.rating) ?? 0,
+        rating: review.rating,
         title: review.title,
         body: review.body,
         createdAt: review.createdAt.toISOString(),
       })),
       sources: row.sourceRecords.map((record) => ({
         name: record.source.name,
-        url: record.sourceUrl,
+        url: record.url,
         fetchedAt: record.fetchedAt.toISOString(),
       })),
       updatedAt: row.updatedAt.toISOString(),
@@ -316,9 +342,7 @@ export const guitarRepository = {
         isPublished: true,
         slug: { not: guitar.slug },
         category: guitar.category,
-        ...(price
-          ? { currentBest: { gte: price * 0.55, lte: price * 1.65 } }
-          : {}),
+        ...(price ? { currentBest: { gte: price * 0.55, lte: price * 1.65 } } : {}),
       },
       select: cardSelect,
       orderBy: [{ expertScore: "desc" }, { popularity: "desc" }],

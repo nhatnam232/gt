@@ -25,7 +25,7 @@ export type GuitarCardDto = {
   userScoreCount: number
   valueScore: number | null
   availability: Availability
-  image: { url: string; alt: string; width: number | null; height: number | null } | null
+  image: { url: string; alt: string; width: number | null; height: number | null; blurData: string | null } | null
 }
 
 export type PriceOfferDto = {
@@ -35,7 +35,8 @@ export type PriceOfferDto = {
   currency: string
   url: string
   availability: Availability
-  shipping: number | null
+  condition: string
+  shippingNote: string | null
   checkedAt: string
 }
 
@@ -57,17 +58,24 @@ export type GuitarDetailDto = GuitarCardDto & {
   color: string | null
   weightKg: number | null
   handedness: Handedness
-  cutaway: boolean
-  electroAcoustic: boolean
-  caseIncluded: boolean
+  cutaway: boolean | null
+  electroAcoustic: boolean | null
+  caseIncluded: boolean | null
   accessories: string[]
   warranty: string | null
   specs: Record<string, string | number | boolean | null>
   summary: string | null
   pros: string[]
   cons: string[]
-  images: { url: string; alt: string; width: number | null; height: number | null; isPrimary: boolean }[]
-  videos: { youtubeId: string; title: string | null }[]
+  images: {
+    url: string
+    alt: string
+    width: number | null
+    height: number | null
+    blurData: string | null
+    is360: boolean
+  }[]
+  videos: { videoId: string; provider: string; title: string | null; channel: string | null }[]
   documents: { url: string; title: string; kind: string }[]
   faqs: { question: string; answer: string }[]
   offers: PriceOfferDto[]
