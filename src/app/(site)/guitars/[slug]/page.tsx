@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Star, ShoppingCart, ExternalLink } from "lucide-react"
 import { GuitarCard } from "@/components/guitar-card"
 import type { Metadata } from "next"
-import { siteConfig } from "@/config/site"
 
-export const revalidate = siteConfig.REVALIDATE.detail
+// Next.js requires a literal number (siteConfig.REVALIDATE.detail = 1800)
+export const revalidate = 1800
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
@@ -152,10 +152,10 @@ export default async function GuitarDetailPage({ params }: { params: Promise<{ s
                 ["Back & sides", guitar.backWood ? `${guitar.backWood} / ${guitar.sideWood ?? "—"}` : null],
                 ["Neck wood", guitar.neckWood],
                 ["Fingerboard", guitar.fingerboard],
-                ["Scale length", guitar.scaleLengthIn ? `${guitar.scaleLengthIn}"` : null],
+                ["Scale length", guitar.scaleLengthIn ? `${guitar.scaleLengthIn}\"` : null],
                 ["Frets", guitar.frets],
                 ["Strings", guitar.strings],
-                ["Nut width", guitar.nutWidthIn ? `${guitar.nutWidthIn}"` : null],
+                ["Nut width", guitar.nutWidthIn ? `${guitar.nutWidthIn}\"` : null],
                 ["Nut material", guitar.nutMaterial],
                 ["Bridge", guitar.bridge],
                 ["Pickups", guitar.pickupConfig],
