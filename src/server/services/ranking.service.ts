@@ -13,6 +13,7 @@ type Candidate = {
   userScore: number | null
   userScoreCount: number
   valueScore: number | null
+  /** Normalised 0..1 popularity, derived from popularityRank (lower rank = more popular). */
   popularity: number
   price: number | null
 }
@@ -52,20 +53,19 @@ export const rankingService = {
    * admin "rebuild rankings" action - never at request time.
    */
   async rebuild(definition: RankingDefinition): Promise<number> {
+    const constraints = definition.constraints
+
     const where: Prisma.GuitarWhereInput = {
       isPublished: true,
       ...(definition.category ? { category: definition.category } : {}),
-      ...(definition.constraints?.minExpertScore
-        ? { expertScore: { gte: definition.constraints.minExpertScore } }
+      ...(constraints?.minExpertScore
+        ? { expertScore: { gte: constraints.minExpertScore } }
         : {}),
-      ...(definition.constraints?.minUserReviews
-        ? { userScoreCount: { gte: definition.constraints.minUserReviews } }
-        : {}),
-      ...(definition.constraints?.minPrice || definition.constraints?.maxPrice
+      ...(constraints?.minPrice || constraints?.maxPrice
         ? {
-            currentBest: {
-              ...(definition.constraints.minPrice ? { gte: definition.constraints.minPrice } : {}),
-              ...(definition.constraints.maxPrice ? { lte: definition.constraints.maxPrice } : {}),
+            msrp: {
+              ...(constraints.minPrice ? { gte: constraints.minPrice } : {}),
+              ...(constraints.maxPrice ? { lte: constraints.maxPrice } : {}),
             },
           }
         : {}),
@@ -78,24 +78,31 @@ export const rankingService = {
         name: true,
         expertScore: true,
         userScore: true,
-        userScoreCount: true,
         valueScore: true,
-        popularity: true,
-        currentBest: true,
+        popularityRank: true,
+        msrp: true,
+        // There is no denormalised review counter on Guitar, so count the
+        // approved reviews directly.
+        _count: { select: { reviews: true } },
       },
       take: 2000,
     })
 
-    const candidates: Candidate[] = rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      expertScore: decimalToNumber(row.expertScore),
-      userScore: decimalToNumber(row.userScore),
-      userScoreCount: row.userScoreCount,
-      valueScore: decimalToNumber(row.valueScore),
-      popularity: row.popularity,
-      price: decimalToNumber(row.currentBest),
-    }))
+    const candidates: Candidate[] = rows
+      .map((row) => ({
+        id: row.id,
+        name: row.name,
+        expertScore: decimalToNumber(row.expertScore),
+        userScore: decimalToNumber(row.userScore),
+        userScoreCount: row._count.reviews,
+        valueScore: decimalToNumber(row.valueScore),
+        // popularityRank is 1 = most popular, so invert it into a 0..1 score.
+        popularity: row.popularityRank && row.popularityRank > 0 ? 1 / row.popularityRank : 0,
+        price: decimalToNumber(row.msrp),
+      }))
+      // Review-count constraint is applied here because Prisma cannot filter on
+      // a relation count inside `where`.
+      .filter((c) => !constraints?.minUserReviews || c.userScoreCount >= constraints.minUserReviews)
 
     if (candidates.length === 0) return 0
 
@@ -133,21 +140,17 @@ export const rankingService = {
       .sort((a, b) => b.score - a.score)
       .slice(0, 50)
 
+    // The Ranking model stores slug + name + category only; the richer copy
+    // (subtitle, description) lives in RANKING_DEFINITIONS.
     const ranking = await prisma.ranking.upsert({
-      where: { key: definition.key },
+      where: { slug: definition.slug },
       create: {
-        key: definition.key,
         slug: definition.slug,
-        title: definition.title,
-        subtitle: definition.subtitle,
-        description: definition.description,
+        name: definition.title,
         category: definition.category ?? null,
       },
       update: {
-        slug: definition.slug,
-        title: definition.title,
-        subtitle: definition.subtitle,
-        description: definition.description,
+        name: definition.title,
         category: definition.category ?? null,
       },
     })

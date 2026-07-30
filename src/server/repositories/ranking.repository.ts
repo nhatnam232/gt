@@ -8,6 +8,11 @@ export const rankingRepository = {
     })
   },
 
+  /** Alias of `list`, used by the ranking index page. */
+  async index() {
+    return rankingRepository.list()
+  },
+
   async findBySlug(slug: string) {
     return prisma.ranking.findUnique({
       where: { slug },
@@ -26,5 +31,10 @@ export const rankingRepository = {
         },
       },
     })
+  },
+
+  /** Alias of `findBySlug`. */
+  async bySlug(slug: string) {
+    return rankingRepository.findBySlug(slug)
   },
 }
