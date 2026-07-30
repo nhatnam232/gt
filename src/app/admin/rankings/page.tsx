@@ -1,46 +1,65 @@
 import { requireRole } from "@/lib/session"
 import { redirect } from "next/navigation"
-import { rebuildRankings, reindex } from "@/server/actions/ops.actions"
-import { rankingService } from "@/server/services/ranking.service"
+import { prisma } from "@/lib/prisma"
+import { triggerReindex } from "@/server/actions/ops.actions"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { formatDate } from "@/lib/utils"
 
 export const dynamic = "force-dynamic"
 
 export default async function AdminRankingsPage() {
   await requireRole("EDITOR").catch(() => redirect("/sign-in"))
-  const rankings = await rankingService.index()
+
+  const rankings = await prisma.ranking.findMany({
+    orderBy: { updatedAt: "desc" },
+    take: 30,
+    select: {
+      id: true,
+      slug: true,
+      name: true,
+      category: true,
+      updatedAt: true,
+      _count: { select: { entries: true } },
+    },
+  })
 
   return (
     <div>
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Rankings</h1>
-        <div className="flex gap-2">
-          <form action={rebuildRankings}>
-            <Button type="submit" variant="outline" size="sm">Rebuild rankings</Button>
-          </form>
-          <form action={reindex}>
-            <Button type="submit" variant="outline" size="sm">Reindex search</Button>
-          </form>
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <h1 className="text-2xl font-semibold">Rankings & Search index</h1>
+        <form action={triggerReindex}>
+          <Button type="submit" size="sm">Reindex search + rebuild rankings</Button>
+        </form>
       </div>
+
       <div className="mt-6 overflow-hidden rounded-xl border">
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b bg-secondary/50">
-              <th className="px-4 py-3 text-left">Ranking</th>
+              <th className="px-4 py-3 text-left">Name</th>
+              <th className="px-4 py-3 text-left">Category</th>
               <th className="px-4 py-3 text-right">Entries</th>
               <th className="px-4 py-3 text-left">Last updated</th>
             </tr>
           </thead>
           <tbody>
             {rankings.length === 0 ? (
-              <tr><td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">No rankings yet. Click Rebuild rankings.</td></tr>
-            ) : rankings.map((ranking) => (
-              <tr key={ranking.slug} className="border-b last:border-0">
-                <td className="px-4 py-3 font-medium">{ranking.title}</td>
-                <td className="px-4 py-3 text-right tabular-nums">{ranking.count}</td>
-                <td className="px-4 py-3 text-muted-foreground">{formatDate(ranking.updatedAt)}</td>
+              <tr>
+                <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
+                  No rankings yet. Run the ETL pipeline to generate them.
+                </td>
+              </tr>
+            ) : rankings.map((r) => (
+              <tr key={r.id} className="border-b last:border-0">
+                <td className="px-4 py-3 font-medium">{r.name}</td>
+                <td className="px-4 py-3">
+                  {r.category ? <Badge variant="outline">{r.category}</Badge> : <span className="text-muted-foreground">—</span>}
+                </td>
+                <td className="px-4 py-3 text-right tabular-nums">{r._count.entries}</td>
+                <td className="px-4 py-3 text-xs text-muted-foreground">
+                  {formatDate(r.updatedAt.toISOString())}
+                </td>
               </tr>
             ))}
           </tbody>
