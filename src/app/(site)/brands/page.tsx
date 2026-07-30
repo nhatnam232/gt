@@ -1,9 +1,9 @@
 import { brandRepository } from "@/server/repositories/brand.repository"
 import Link from "next/link"
 import type { Metadata } from "next"
-import { siteConfig } from "@/config/site"
 
-export const revalidate = siteConfig.REVALIDATE.brand
+// Next.js requires a literal number (siteConfig.REVALIDATE.brand = 21600)
+export const revalidate = 21600
 export const metadata: Metadata = { title: "Guitar Brands" }
 
 export default async function BrandsPage() {
