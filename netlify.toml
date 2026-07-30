@@ -6,18 +6,20 @@
   # Netlify UI it would override netlify.toml, so we strip it from the shell
   # right before building. Binary targets live in prisma/schema.prisma instead.
   #
-  # The build runs three steps in order:
-  #   1. `prisma db push` reconciles the live database with schema.prisma.
+  # The build runs four steps in order:
+  #   1. `prisma generate` builds the query engine for this machine. It has to
+  #      come first because step 3 opens a real database connection, and
+  #      `npm run build` (step 4) is otherwise the only thing that generates.
+  #   2. `prisma db push` reconciles the live database with schema.prisma.
   #      There is no prisma/migrations directory, so `migrate deploy` would be a
   #      no-op. Idempotent: once the tables match, it does nothing.
-  #   2. `db:seed` inserts reference data (brands, sources, ranking definitions).
+  #   3. `db:seed` inserts reference data (brands, sources, ranking definitions).
   #      Every write in prisma/seed.ts is an upsert keyed by slug, so re-running
   #      it on each deploy never duplicates or deletes rows. It does NOT create
   #      guitar products - those come from the ETL crawler (`npm run etl:all`).
-  #   3. `npm run build` generates the Prisma client and builds Next.js. Several
-  #      routes query the database from generateStaticParams, which is why the
-  #      first two steps have to happen before it.
-  command = "unset PRISMA_CLI_BINARY_TARGETS; npx prisma db push --skip-generate && npm run db:seed && npm run build"
+  #   4. `npm run build` builds Next.js. Several routes query the database from
+  #      generateStaticParams, which is why the earlier steps come first.
+  command = "unset PRISMA_CLI_BINARY_TARGETS; npx prisma generate && npx prisma db push --skip-generate && npm run db:seed && npm run build"
   publish = ".next"
 
 [build.environment]
