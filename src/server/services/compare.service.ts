@@ -113,7 +113,13 @@ export const compareService = {
           const first = cells[0]!.display
           const differs = cells.some((cell) => cell.display !== first)
           const allEmpty = cells.every((cell) => cell.display === "-")
-          if (!allEmpty) differs ? differingCount++ : identicalCount++
+          if (!allEmpty) {
+            if (differs) {
+              differingCount++
+            } else {
+              identicalCount++
+            }
+          }
           return {
             key: field.key,
             label: field.label,
