@@ -11,7 +11,7 @@
 
 - 🔍 **Full-text search** powered by Meilisearch
 - ⚖️ **Side-by-side compare** up to 5 instruments
-- 🏆 **Expert & user score** aggregation
+- 🏆 **Expert & user score** aggregationf
 - 💰 **Live prices** from Sweetwater, Thomann, Amazon & more
 - 🥇 **Ranked lists** for every budget and category
 - 👤 **Auth** via GitHub / Google (Better Auth)
