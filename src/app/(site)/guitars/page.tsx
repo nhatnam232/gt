@@ -4,9 +4,9 @@ import { GuitarCard } from "@/components/guitar-card"
 import { SortBar } from "@/components/sort-bar"
 import { CompareBar } from "@/components/compare-bar"
 import type { Metadata } from "next"
-import { siteConfig } from "@/config/site"
 
-export const revalidate = siteConfig.REVALIDATE.listing
+// Next.js requires a literal number (siteConfig.REVALIDATE.listing = 600)
+export const revalidate = 600
 
 export const metadata: Metadata = {
   title: "Browse All Guitars",
