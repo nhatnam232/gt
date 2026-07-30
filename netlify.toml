@@ -5,7 +5,13 @@
   # "native" target and breaks `prisma generate`. If it is still defined in the
   # Netlify UI it would override netlify.toml, so we strip it from the shell
   # right before building. Binary targets live in prisma/schema.prisma instead.
-  command = "unset PRISMA_CLI_BINARY_TARGETS; npm run build"
+  #
+  # `prisma db push` runs before the build because several routes call the
+  # database from `generateStaticParams` at build time. There is no
+  # prisma/migrations directory in this repo, so `migrate deploy` would be a
+  # no-op; `db push` reconciles the live database with schema.prisma directly.
+  # It is idempotent: once the tables match the schema it does nothing.
+  command = "unset PRISMA_CLI_BINARY_TARGETS; npx prisma db push --skip-generate && npm run build"
   publish = ".next"
 
 [build.environment]
