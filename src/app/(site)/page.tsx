@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { CATEGORIES, categoryMeta } from "@/config/navigation"
+import { CATEGORIES } from "@/config/navigation"
 import { Button } from "@/components/ui/button"
 import { ArrowRight, Star, BarChart3, SlidersHorizontal, Zap } from "lucide-react"
 import { prisma } from "@/lib/prisma"
@@ -7,7 +7,8 @@ import { GuitarCard } from "@/components/guitar-card"
 import type { Metadata } from "next"
 import { siteConfig } from "@/config/site"
 
-export const revalidate = siteConfig.REVALIDATE.home
+// NOTE: Next.js requires a literal number here (siteConfig.REVALIDATE.home)
+export const revalidate = 900
 
 export const metadata: Metadata = {
   title: "Compare Every Guitar — GuitarTribe",
