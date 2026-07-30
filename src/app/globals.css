@@ -1,0 +1,235 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Design tokens. Two carefully tuned palettes (light + dark) built around a
+ * warm tonewood accent, so the product photography always sits comfortably on
+ * the surface colours.
+ */
+@layer base {
+  :root {
+    --background: 40 33% 99%;
+    --foreground: 24 12% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 24 12% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 24 12% 10%;
+
+    --primary: 24 90% 44%;
+    --primary-foreground: 40 40% 99%;
+
+    --secondary: 30 20% 95%;
+    --secondary-foreground: 24 20% 18%;
+
+    --muted: 30 16% 95%;
+    --muted-foreground: 25 8% 42%;
+
+    --accent: 168 60% 40%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 46%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 152 56% 36%;
+    --warning: 38 92% 46%;
+
+    --border: 28 14% 89%;
+    --input: 28 14% 89%;
+    --ring: 24 90% 44%;
+
+    --radius: 0.875rem;
+
+    --surface-glass: 0 0% 100% / 0.72;
+    --shadow-color: 24 20% 20%;
+  }
+
+  .dark {
+    --background: 24 12% 6%;
+    --foreground: 36 20% 96%;
+
+    --card: 24 10% 9%;
+    --card-foreground: 36 20% 96%;
+
+    --popover: 24 10% 9%;
+    --popover-foreground: 36 20% 96%;
+
+    --primary: 28 96% 56%;
+    --primary-foreground: 24 30% 8%;
+
+    --secondary: 24 8% 15%;
+    --secondary-foreground: 36 18% 92%;
+
+    --muted: 24 8% 14%;
+    --muted-foreground: 30 8% 65%;
+
+    --accent: 168 62% 46%;
+    --accent-foreground: 24 30% 8%;
+
+    --destructive: 0 72% 56%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 152 52% 46%;
+    --warning: 38 92% 56%;
+
+    --border: 26 8% 18%;
+    --input: 26 8% 20%;
+    --ring: 28 96% 56%;
+
+    --surface-glass: 24 10% 9% / 0.7;
+    --shadow-color: 0 0% 0%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "ss01";
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Respect users who ask for less motion - required for the a11y budget. */
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+
+  ::selection {
+    @apply bg-primary/20;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-semibold tracking-tight;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  /* Slimmer scrollbars, without hiding them from keyboard users. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-border;
+  }
+}
+
+@layer components {
+  /* Frosted surface used by the header, command palette and compare tray. */
+  .glass {
+    background-color: hsl(var(--surface-glass));
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+  }
+
+  .container-page {
+    @apply mx-auto w-full max-w-[88rem] px-4 sm:px-6 lg:px-8;
+  }
+
+  .section {
+    @apply py-14 sm:py-20;
+  }
+
+  .eyebrow {
+    @apply text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground;
+  }
+
+  /* Subtle top-lit border used on cards, à la Linear/Vercel. */
+  .hairline {
+    box-shadow:
+      inset 0 1px 0 0 hsl(0 0% 100% / 0.06),
+      0 1px 2px 0 hsl(var(--shadow-color) / 0.06);
+  }
+
+  .card-hover {
+    @apply transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/5;
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-br from-foreground via-foreground to-foreground/55 bg-clip-text text-transparent;
+  }
+
+  .mesh {
+    background-image:
+      radial-gradient(60% 50% at 15% 0%, hsl(var(--primary) / 0.14), transparent 70%),
+      radial-gradient(45% 45% at 85% 10%, hsl(var(--accent) / 0.12), transparent 70%);
+  }
+
+  .grid-lines {
+    background-image:
+      linear-gradient(to right, hsl(var(--border) / 0.5) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--border) / 0.5) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(70% 60% at 50% 0%, black, transparent 75%);
+  }
+
+  /* Meilisearch returns <mark> tags in highlighted titles. */
+  mark {
+    @apply rounded bg-primary/20 px-0.5 text-foreground;
+  }
+
+  .prose-editorial {
+    @apply max-w-none leading-relaxed;
+  }
+  .prose-editorial h2 {
+    @apply mt-10 text-2xl;
+  }
+  .prose-editorial h3 {
+    @apply mt-8 text-xl;
+  }
+  .prose-editorial p {
+    @apply mt-4 text-[15px] text-muted-foreground sm:text-base;
+  }
+  .prose-editorial ul {
+    @apply mt-4 list-disc space-y-2 pl-6 text-muted-foreground;
+  }
+  .prose-editorial a {
+    @apply font-medium text-primary underline-offset-4 hover:underline;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .text-balance {
+    text-wrap: balance;
+  }
+}
