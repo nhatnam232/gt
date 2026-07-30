@@ -1,69 +1,39 @@
 import { ImageResponse } from "next/og"
+import type { NextRequest } from "next/server"
 import { siteConfig } from "@/config/site"
 
 export const runtime = "edge"
-export const alt = siteConfig.name
-export const size = { width: 1200, height: 630 }
 
-/** Dynamic OpenGraph card generator used as the fallback social image. */
-export function GET(request: Request) {
+export function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const title = (searchParams.get("title") ?? siteConfig.tagline).slice(0, 120)
-  const subtitle = (searchParams.get("subtitle") ?? siteConfig.name).slice(0, 120)
+  const title = searchParams.get("title") ?? siteConfig.name
+  const description = searchParams.get("description") ?? siteConfig.description
 
   return new ImageResponse(
     (
       <div
         style={{
-          height: "100%",
           width: "100%",
+          height: "100%",
           display: "flex",
           flexDirection: "column",
-          justifyContent: "space-between",
-          background: "linear-gradient(135deg, #120f0d 0%, #1d1613 55%, #2a1a0d 100%)",
-          padding: 72,
-          color: "#fbf7f2",
+          alignItems: "flex-start",
+          justifyContent: "flex-end",
+          padding: "60px",
+          background: "linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)",
           fontFamily: "sans-serif",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: 30, opacity: 0.85 }}>
-          <div
-            style={{
-              width: 52,
-              height: 52,
-              borderRadius: 16,
-              background: "#f0821f",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 30,
-              color: "#1a1108",
-              fontWeight: 700,
-            }}
-          >
-            G
+        <div style={{ position: "absolute", top: 48, left: 60, display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 8, background: "#6366f1", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ color: "white", fontSize: 20 }}>🎸</span>
           </div>
-          <span style={{ fontWeight: 600 }}>{siteConfig.name}</span>
+          <span style={{ color: "white", fontSize: 22, fontWeight: 700 }}>{siteConfig.name}</span>
         </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
-          <div style={{ fontSize: 66, fontWeight: 700, lineHeight: 1.1, letterSpacing: -1.6 }}>
-            {title}
-          </div>
-          <div style={{ fontSize: 30, opacity: 0.72 }}>{subtitle}</div>
-        </div>
-
-        <div style={{ display: "flex", gap: 14, fontSize: 24, opacity: 0.6 }}>
-          <span>Specs</span>
-          <span>-</span>
-          <span>Scores</span>
-          <span>-</span>
-          <span>Prices</span>
-          <span>-</span>
-          <span>Side-by-side comparison</span>
-        </div>
+        <p style={{ color: "#94a3b8", fontSize: 22, margin: "0 0 16px 0", maxWidth: 800 }}>{description}</p>
+        <h1 style={{ color: "white", fontSize: 56, fontWeight: 800, margin: 0, lineHeight: 1.1, maxWidth: 900 }}>{title}</h1>
       </div>
     ),
-    size,
+    { width: 1200, height: 630 },
   )
 }
