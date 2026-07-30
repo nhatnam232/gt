@@ -2,9 +2,9 @@ import { brandRepository } from "@/server/repositories/brand.repository"
 import { GuitarCard } from "@/components/guitar-card"
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
-import { siteConfig } from "@/config/site"
 
-export const revalidate = siteConfig.REVALIDATE.brand
+// Next.js requires a literal number (siteConfig.REVALIDATE.brand = 21600)
+export const revalidate = 21600
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
