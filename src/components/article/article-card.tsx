@@ -56,7 +56,7 @@ export function ArticleCard({
               {article.excerpt}
             </span>
           ) : null}
-          <span className="mt-3 block text-xs text-muted-foreground">By {article.author}</span>
+          <span className="mt-3 block text-xs text-muted-foreground">By {article.authorName}</span>
         </span>
       </Link>
     </article>
