@@ -36,7 +36,7 @@ export default async function AdminReviewsPage() {
               </div>
               <div className="flex gap-2">
                 <form action={moderateReview.bind(null, review.id, true)}>
-                  <Button type="submit" size="sm" variant="success">Approve</Button>
+                  <Button type="submit" size="sm" variant="default">Approve</Button>
                 </form>
                 <form action={moderateReview.bind(null, review.id, false)}>
                   <Button type="submit" size="sm" variant="destructive">Reject</Button>

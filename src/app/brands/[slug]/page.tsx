@@ -7,8 +7,6 @@ import { brandRepository } from "@/server/repositories/brand.repository"
 import { guitarService } from "@/server/services/guitar.service"
 import { parseGuitarQuery } from "@/domain/guitar/query"
 import { GuitarGrid } from "@/components/guitar/guitar-grid"
-import { guitarService as gs } from "@/server/services/guitar.service"
-import { guitarService as guitarSvc } from "@/server/services/guitar.service"
 
 export const revalidate = 3600
 

@@ -1,59 +1,49 @@
-"use client"
-
-import { useActionState, useEffect, useState } from "react"
-import { RefreshCw } from "lucide-react"
+import { redirect } from "next/navigation"
+import { requireRole } from "@/lib/session"
+import { prisma } from "@/lib/prisma"
 import { enqueueCrawl, cancelCrawl } from "@/server/actions/ops.actions"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { formatDate } from "@/lib/utils"
 
-type CrawlJob = {
-  id: string
-  target: string
-  status: string
-  itemsFound: number
-  itemsNew: number
-  startedAt: string | null
-  finishedAt: string | null
-  error: string | null
+export const dynamic = "force-dynamic"
+
+const STATUS_VARIANT: Record<string, "default" | "success" | "destructive" | "outline" | "warning"> = {
+  QUEUED: "outline",
+  RUNNING: "default",
+  SUCCESS: "success",
+  PARTIAL: "warning",
+  FAILED: "destructive",
+  CANCELLED: "outline",
 }
 
-export default function CrawlerPage() {
-  const [jobs, setJobs] = useState<CrawlJob[]>([])
-  const [loading, setLoading] = useState(true)
+export default async function CrawlerPage() {
+  await requireRole("EDITOR").catch(() => redirect("/sign-in"))
 
-  const loadJobs = () => {
-    setLoading(true)
-    fetch("/api/admin/crawl-jobs")
-      .then((res) => res.json())
-      .then((data) => setJobs(data as CrawlJob[]))
-      .finally(() => setLoading(false))
-  }
-
-  useEffect(() => { loadJobs() }, [])
-
-  const STATUS_VARIANT: Record<string, "default" | "success" | "destructive" | "outline" | "warning"> = {
-    QUEUED: "outline",
-    RUNNING: "default",
-    SUCCESS: "success",
-    PARTIAL: "warning",
-    FAILED: "destructive",
-    CANCELLED: "outline",
-  }
+  const jobs = await prisma.crawlJob.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 50,
+    select: {
+      id: true,
+      target: true,
+      status: true,
+      itemsFound: true,
+      itemsNew: true,
+      startedAt: true,
+      finishedAt: true,
+      error: true,
+    },
+  })
 
   const targets = ["brands", "prices", "wikidata", "retailers"]
 
   return (
     <div>
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Crawler monitor</h1>
-        <Button variant="outline" size="sm" onClick={loadJobs} className="gap-2">
-          <RefreshCw className="size-4" /> Refresh
-        </Button>
-      </div>
+      <h1 className="text-2xl font-semibold">Crawler monitor</h1>
 
       <div className="mt-6 flex flex-wrap gap-3">
         {targets.map((target) => (
-          <form key={target} action={async () => { "use server"; await enqueueCrawl(target) }}>
+          <form key={target} action={enqueueCrawl.bind(null, target)}>
             <Button type="submit" variant="outline" size="sm" className="capitalize">
               Enqueue {target}
             </Button>
@@ -74,10 +64,12 @@ export default function CrawlerPage() {
             </tr>
           </thead>
           <tbody>
-            {loading ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">Loading...</td></tr>
-            ) : jobs.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No jobs yet. Enqueue one above.</td></tr>
+            {jobs.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                  No jobs yet. Enqueue one above.
+                </td>
+              </tr>
             ) : jobs.map((job) => (
               <tr key={job.id} className="border-b last:border-0">
                 <td className="px-4 py-3 font-medium">{job.target}</td>
@@ -87,12 +79,14 @@ export default function CrawlerPage() {
                 <td className="px-4 py-3 text-right tabular-nums">{job.itemsFound}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{job.itemsNew}</td>
                 <td className="px-4 py-3 text-xs text-muted-foreground">
-                  {job.startedAt ? new Date(job.startedAt).toLocaleString() : "-"}
+                  {job.startedAt ? formatDate(job.startedAt.toISOString()) : "-"}
                 </td>
                 <td className="px-4 py-3">
                   {job.status === "QUEUED" || job.status === "RUNNING" ? (
-                    <form action={async () => { "use server"; await cancelCrawl(job.id) }}>
-                      <button type="submit" className="text-xs text-destructive hover:underline">Cancel</button>
+                    <form action={cancelCrawl.bind(null, job.id)}>
+                      <button type="submit" className="text-xs text-destructive hover:underline">
+                        Cancel
+                      </button>
                     </form>
                   ) : null}
                 </td>

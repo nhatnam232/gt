@@ -3,8 +3,9 @@
 import { useRouter, useSearchParams } from "next/navigation"
 import { useTransition } from "react"
 import { LayoutGrid, List } from "lucide-react"
-import { SORT_OPTIONS, type SortKey } from "@/domain/guitar/types"
-import { serializeGuitarQuery, type GuitarQuery } from "@/domain/guitar/query"
+import type { GuitarQuery, SortKey } from "@/domain/guitar/types"
+import { SORT_OPTIONS } from "@/domain/guitar/types"
+import { serializeGuitarQuery } from "@/domain/guitar/query"
 import { formatNumber } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -33,8 +34,8 @@ export function SortBar({
   const onSort = (sort: string) =>
     startTransition(() => {
       const qs = serializeGuitarQuery({ ...query, sort: sort as SortKey, page: 1 })
-      const base = searchParams.get("category")
-        ? `/c/${searchParams.get("category")}`
+      const base = query.category
+        ? `/c/${query.category.toLowerCase()}`
         : "/guitars"
       router.push(qs ? `${base}?${qs}` : base)
     })
