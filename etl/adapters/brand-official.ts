@@ -12,7 +12,6 @@
 import * as cheerio from "cheerio"
 import pLimit from "p-limit"
 import { prisma } from "../../src/lib/prisma"
-import { BRAND_SEED } from "../../src/config/brands"
 import { SOURCE_SEED } from "../../src/config/sources"
 import { createJob, finishJob, logJob } from "../job"
 import { fetchRobots, isAllowed } from "../robots"
@@ -29,7 +28,8 @@ export async function crawlBrands() {
   const job = await createJob("official-brands")
   let found = 0, added = 0, failed = 0
 
-  const officialSources = SOURCE_SEED.filter((s) => s.kind === "OFFICIAL")
+  // SourceKind enum value is OFFICIAL_BRAND (see prisma/schema.prisma)
+  const officialSources = SOURCE_SEED.filter((s) => s.kind === "OFFICIAL_BRAND")
   const limit = pLimit(CONCURRENCY)
 
   await Promise.all(
@@ -52,12 +52,13 @@ export async function crawlBrands() {
 
               found++
               const fingerprint = `${source.slug}:${url}`
-              const existing = await prisma.sourceRecord.findFirst({
-                where: { sourceId: source.slug, fingerprint },
-              })
 
               const sourceRow = await prisma.source.findUnique({ where: { slug: source.slug } })
               if (!sourceRow) continue
+
+              const existing = await prisma.sourceRecord.findFirst({
+                where: { sourceId: sourceRow.id, fingerprint },
+              })
 
               if (!existing) {
                 await prisma.sourceRecord.create({
@@ -96,7 +97,7 @@ export async function crawlBrands() {
 
 async function discoverProductUrls(
   baseUrl: string,
-  robots: string,
+  _robots: string,
 ): Promise<string[]> {
   const urls: string[] = []
 
