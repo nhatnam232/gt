@@ -7,20 +7,28 @@ cloudinary.config({
   secure: true,
 })
 
-export type UploadOptions = { folder?: string; publicId?: string }
+export async function uploadToCloudinary(file: File): Promise<string> {
+  const bytes = await file.arrayBuffer()
+  const buffer = Buffer.from(bytes)
 
-export async function uploadAsset(dataUri: string, options: UploadOptions = {}) {
-  const result = await cloudinary.uploader.upload(dataUri, {
-    folder: options.folder ?? "guitartribe",
-    public_id: options.publicId,
-    overwrite: !!options.publicId,
-    resource_type: "image",
-    transformation: [{ quality: "auto", fetch_format: "auto" }, { width: 1200, crop: "limit" }],
+  return new Promise((resolve, reject) => {
+    cloudinary.uploader
+      .upload_stream(
+        {
+          folder: process.env.CLOUDINARY_UPLOAD_FOLDER ?? "guitartribe",
+          resource_type: "image",
+          transformation: [{ width: 1200, height: 1200, crop: "limit", quality: "auto", fetch_format: "auto" }],
+        },
+        (error, result) => {
+          if (error || !result) reject(error ?? new Error("Upload failed"))
+          else resolve(result.secure_url)
+        },
+      )
+      .end(buffer)
   })
-  return { secure_url: result.secure_url, public_id: result.public_id, width: result.width, height: result.height }
 }
 
-export async function deleteAsset(publicId: string) {
+export async function deleteFromCloudinary(publicId: string): Promise<void> {
   await cloudinary.uploader.destroy(publicId)
 }
 
