@@ -1,8 +1,12 @@
 import { MAX_COMPARE } from "@/config/site"
 import { SPEC_FIELDS, SPEC_GROUPS, type SpecField, type SpecGroupKey } from "@/config/spec-schema"
 import type { GuitarDetailDto } from "@/domain/guitar/types"
+import { bestPrice, toNumber } from "@/domain/guitar/view"
 import { formatPrice } from "@/lib/utils"
 import { guitarRepository } from "@/server/repositories/guitar.repository"
+
+/** Exact row shape returned by the repository, including every relation it loads. */
+type DetailRow = NonNullable<Awaited<ReturnType<typeof guitarRepository.detail>>>
 
 export type CompareCell = { raw: string | number | boolean | null; display: string }
 
@@ -30,21 +34,6 @@ export type CompareResult = {
 const HIGHER_IS_BETTER = new Set(["expertScore", "userScore", "valueScore", "frets"])
 const LOWER_IS_BETTER = new Set(["currentBest", "msrp", "weightKg"])
 
-/** Prisma Decimal | number | null -> number | null. */
-function toNumber(value: unknown): number | null {
-  if (value === null || value === undefined) return null
-  const n = Number(value)
-  return Number.isFinite(n) ? n : null
-}
-
-/** Cheapest tracked offer, falling back to MSRP. */
-function bestPrice(guitar: GuitarDetailDto): number | null {
-  const offers = guitar.prices ?? []
-  const prices = offers.map((offer) => toNumber(offer.price)).filter((n): n is number => n !== null)
-  if (prices.length > 0) return Math.min(...prices)
-  return toNumber(guitar.msrp)
-}
-
 function currencyOf(guitar: GuitarDetailDto): string {
   return guitar.prices?.[0]?.currency ?? "USD"
 }
@@ -58,17 +47,14 @@ function readValue(guitar: GuitarDetailDto, field: SpecField): string | number |
     case "brand":
       return guitar.brand.name
     case "currentBest":
-      return bestPrice(guitar)
+      return bestPrice(guitar) ?? toNumber(guitar.msrp)
     case "category":
       return guitar.category
     default: {
       const value = (guitar as unknown as Record<string, unknown>)[field.key]
       if (value === undefined || value === null) return null
-      if (typeof value === "object") {
-        // Prisma Decimal columns are objects but are meaningfully numeric.
-        const n = toNumber(value)
-        return n
-      }
+      // Prisma Decimal columns are objects but are meaningfully numeric.
+      if (typeof value === "object") return toNumber(value)
       return value as string | number | boolean
     }
   }
@@ -106,9 +92,8 @@ export const compareService = {
   /** Resolve up to MAX_COMPARE slugs into a diffable comparison matrix. */
   async build(slugs: string[]): Promise<CompareResult> {
     const wanted = Array.from(new Set(slugs)).slice(0, MAX_COMPARE)
-    const guitars = (
-      await Promise.all(wanted.map((slug) => guitarRepository.detail(slug)))
-    ).filter((g): g is GuitarDetailDto => Boolean(g))
+    const resolved = await Promise.all(wanted.map((slug) => guitarRepository.detail(slug)))
+    const guitars = resolved.filter((row): row is DetailRow => row !== null)
 
     if (guitars.length === 0) {
       return { guitars: [], groups: [], differingCount: 0, identicalCount: 0 }
