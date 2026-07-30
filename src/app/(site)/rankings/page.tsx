@@ -2,9 +2,9 @@ import { rankingRepository } from "@/server/repositories/ranking.repository"
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 import type { Metadata } from "next"
-import { siteConfig } from "@/config/site"
 
-export const revalidate = siteConfig.REVALIDATE.ranking
+// Next.js requires a literal number (siteConfig.REVALIDATE.ranking = 3600)
+export const revalidate = 3600
 export const metadata: Metadata = { title: "Guitar Rankings" }
 
 export default async function RankingsPage() {
