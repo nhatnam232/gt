@@ -1,38 +1,35 @@
 # Netlify configuration for GuitarTribe (Next.js 15 App Router)
-#
-# Requires the official Next.js Runtime:
-#   npm i -D @netlify/plugin-nextjs
 
 [build]
   command = "npm run build"
   publish = ".next"
 
 [build.environment]
-  NODE_VERSION = "20"
+  # @netlify/plugin-nextjs v5 requires Node 22+
+  NODE_VERSION = "22"
   NEXT_TELEMETRY_DISABLED = "1"
-  # Prisma needs this on Netlify's build image
-  PRISMA_CLI_BINARY_TARGETS = "native,rhel-openssl-3.0.x"
+  # Do NOT set PRISMA_CLI_BINARY_TARGETS here. That variable rejects the
+  # "native" target and breaks `prisma generate`. Binary targets are declared
+  # in prisma/schema.prisma instead.
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
 # ---------------------------------------------------------------------------
 # Scheduled functions (replaces vercel.json crons)
+# Schedules are declared inside each function file via `export const config`.
 # ---------------------------------------------------------------------------
 
 [functions]
   node_bundler = "esbuild"
-  # Prisma engine + schema must be bundled with the functions
-  included_files = ["prisma/**", "node_modules/.prisma/**", "node_modules/@prisma/engines/**"]
+  included_files = [
+    "prisma/**",
+    "node_modules/.prisma/**",
+    "node_modules/@prisma/engines/**",
+  ]
 
-[functions."crawl-brands"]
-  schedule = "0 2 * * *"
-
-[functions."crawl-prices"]
-  schedule = "0 */6 * * *"
-
-[functions."reindex"]
-  schedule = "30 3 * * *"
+[functions."*"]
+  external_node_modules = ["@prisma/client", ".prisma/client"]
 
 # ---------------------------------------------------------------------------
 # Headers

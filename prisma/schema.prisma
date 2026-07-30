@@ -1,5 +1,10 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // "native" covers local dev (macOS/Windows/Linux).
+  // "rhel-openssl-3.0.x" is required by Netlify / AWS Lambda runtimes.
+  // NOTE: do NOT set PRISMA_CLI_BINARY_TARGETS as an env var — that variable
+  // does not accept "native" and will fail the build. Configure targets here.
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
