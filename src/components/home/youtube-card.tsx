@@ -18,13 +18,15 @@ export function YoutubeCard({
   channel: string | null
 }) {
   const [active, setActive] = useState(false)
+  const embedUrl = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0`
+  const thumbUrl = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
 
   return (
     <figure className="hairline overflow-hidden rounded-2xl border bg-card">
       <div className="relative aspect-video bg-muted">
         {active ? (
           <iframe
-            src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0`}
+            src={embedUrl}
             title={title}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
@@ -39,7 +41,7 @@ export function YoutubeCard({
             aria-label={`Play video: ${title}`}
           >
             <Image
-              src={`https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`}
+              src={thumbUrl}
               alt=""
               fill
               sizes="(max-width: 768px) 100vw, 33vw"
