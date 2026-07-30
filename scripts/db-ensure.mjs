@@ -1,28 +1,16 @@
-#!/usr/bin/env node
 /**
- * Pre-dev guard: make sure a DATABASE_URL exists, the Prisma client is
- * generated and the schema is applied. Keeps `npm run dev` a one-liner.
+ * Checks that Postgres is reachable before starting the dev server.
+ * Used by the "dev" npm script.
  */
-import { execSync } from "node:child_process"
-import { existsSync, copyFileSync } from "node:fs"
-
-const run = (cmd) => execSync(cmd, { stdio: "inherit" })
-
-if (!existsSync(".env") && existsSync(".env.example")) {
-  copyFileSync(".env.example", ".env")
-  console.log("[db-ensure] created .env from .env.example")
-}
+import { execSync } from "child_process"
 
 try {
-  run("npx prisma generate")
-} catch {
-  console.warn("[db-ensure] prisma generate failed - continuing")
-}
-
-try {
-  run("npx prisma migrate deploy")
+  execSync("pg_isready -h localhost -p 5432 -U guitar -d guitartribe", { stdio: "pipe" })
+  console.log("[db:ensure] Postgres is ready.")
 } catch {
   console.warn(
-    "[db-ensure] could not reach the database. Start it with `docker compose up -d postgres redis meilisearch`.",
+    "[db:ensure] WARNING: Postgres is not reachable at localhost:5432.\n" +
+    "  Run 'docker compose up -d' to start local services, or ensure DATABASE_URL is set.\n" +
+    "  Continuing anyway..."
   )
 }

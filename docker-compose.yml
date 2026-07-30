@@ -1,7 +1,11 @@
+# Local development services
+# Start with: docker compose up -d
+
+version: "3.9"
+
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: gt-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: guitar
@@ -10,67 +14,56 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U guitar -d guitartribe"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 5
 
   redis:
     image: redis:7-alpine
-    container_name: gt-redis
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "6379:6379"
     volumes:
-      - redisdata:/data
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
-  # Upstash-compatible REST facade so the same cache client works locally.
-  serverless-redis-http:
+  redis-http:
+    # Upstash Redis-compatible HTTP facade for local dev
     image: hiett/serverless-redis-http:latest
-    container_name: gt-redis-http
     restart: unless-stopped
-    depends_on: [redis]
     environment:
       SRH_MODE: env
       SRH_TOKEN: local_token
       SRH_CONNECTION_STRING: redis://redis:6379
     ports:
       - "8079:80"
+    depends_on:
+      - redis
 
   meilisearch:
-    image: getmeili/meilisearch:v1.12
-    container_name: gt-meilisearch
+    image: getmeili/meilisearch:v1.7
     restart: unless-stopped
     environment:
       MEILI_MASTER_KEY: masterKeyChangeMe
-      MEILI_ENV: development
       MEILI_NO_ANALYTICS: "true"
     ports:
       - "7700:7700"
     volumes:
-      - meilidata:/meili_data
-
-  web:
-    build: .
-    container_name: gt-web
-    restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-    env_file: .env
-    environment:
-      DATABASE_URL: postgresql://guitar:guitar@postgres:5432/guitartribe?schema=public
-      DIRECT_URL: postgresql://guitar:guitar@postgres:5432/guitartribe?schema=public
-      UPSTASH_REDIS_REST_URL: http://serverless-redis-http:80
-      UPSTASH_REDIS_REST_TOKEN: local_token
-      MEILISEARCH_HOST: http://meilisearch:7700
-    ports:
-      - "3000:3000"
+      - meilisearch_data:/meili_data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
-  pgdata:
-  redisdata:
-  meilidata:
+  postgres_data:
+  redis_data:
+  meilisearch_data:
