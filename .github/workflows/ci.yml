@@ -6,53 +6,10 @@ on:
   pull_request:
     branches: [main]
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   lint-typecheck:
-    name: Lint & type-check
+    name: Lint & Typecheck
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      - run: npm run lint
-      - run: npm run type-check
-
-  unit-tests:
-    name: Unit tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      - run: npm run test
-
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    env:
-      DATABASE_URL: postgresql://guitar:guitar@localhost:5432/guitartribe
-      DIRECT_URL: postgresql://guitar:guitar@localhost:5432/guitartribe
-      NEXT_PUBLIC_SITE_URL: http://localhost:3000
-      BETTER_AUTH_SECRET: ci-secret-32-chars-minimum-00000
-      BETTER_AUTH_URL: http://localhost:3000
-      UPSTASH_REDIS_REST_URL: http://localhost:8079
-      UPSTASH_REDIS_REST_TOKEN: local_token
-      MEILISEARCH_HOST: http://localhost:7700
-      MEILISEARCH_MASTER_KEY: masterKeyChangeMe
-      CLOUDINARY_CLOUD_NAME: demo
-      CLOUDINARY_API_KEY: "000000000000000"
-      CLOUDINARY_API_SECRET: ci-secret
-      CRON_SECRET: ci-cron-secret
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -61,13 +18,12 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx prisma generate
-      - run: npm run build
+      - run: npm run lint
+      - run: npm run typecheck
 
-  deploy:
-    name: Deploy to Vercel
+  unit-tests:
+    name: Unit tests (Vitest)
     runs-on: ubuntu-latest
-    needs: [lint-typecheck, unit-tests, build]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -75,7 +31,44 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - run: npx vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }}
+      - run: npx prisma generate
+      - run: npm run test
+
+  e2e-tests:
+    name: E2E tests (Playwright)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
         env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          POSTGRES_USER: guitar
+          POSTGRES_PASSWORD: guitar
+          POSTGRES_DB: guitartribe
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://guitar:guitar@localhost:5432/guitartribe
+      DIRECT_URL: postgresql://guitar:guitar@localhost:5432/guitartribe
+      BETTER_AUTH_SECRET: ci-test-secret-32-chars-long-ok
+      BETTER_AUTH_URL: http://localhost:3000
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      CRON_SECRET: ci-cron-secret
+      BASE_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx prisma migrate deploy
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - run: npx playwright test
+        env:
+          CI: true
