@@ -1,0 +1,37 @@
+node_modules
+.next
+out
+build
+coverage
+.vercel
+.turbo
+
+# env
+.env
+.env.local
+.env.*.local
+
+# os / editor
+.DS_Store
+*.pem
+.idea
+.vscode/*
+!.vscode/settings.json
+
+# logs
+npm-debug.log*
+yarn-error.log*
+*.log
+
+# test artifacts
+/test-results
+/playwright-report
+/blob-report
+/playwright/.cache
+
+# etl artifacts
+/etl/.cache
+/etl/out
+/backups
+
+next-env.d.ts
