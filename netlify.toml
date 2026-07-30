@@ -1,23 +1,24 @@
 # Netlify configuration for GuitarTribe (Next.js 15 App Router)
 
 [build]
-  command = "npm run build"
+  # PRISMA_CLI_BINARY_TARGETS is unset defensively: that variable rejects the
+  # "native" target and breaks `prisma generate`. If it is still defined in the
+  # Netlify UI it would override netlify.toml, so we strip it from the shell
+  # right before building. Binary targets live in prisma/schema.prisma instead.
+  command = "unset PRISMA_CLI_BINARY_TARGETS; npm run build"
   publish = ".next"
 
 [build.environment]
   # @netlify/plugin-nextjs v5 requires Node 22+
   NODE_VERSION = "22"
   NEXT_TELEMETRY_DISABLED = "1"
-  # Do NOT set PRISMA_CLI_BINARY_TARGETS here. That variable rejects the
-  # "native" target and breaks `prisma generate`. Binary targets are declared
-  # in prisma/schema.prisma instead.
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
 # ---------------------------------------------------------------------------
-# Scheduled functions (replaces vercel.json crons)
-# Schedules are declared inside each function file via `export const config`.
+# Functions
+# Scheduled functions declare their cron inside each file via `export const config`.
 # ---------------------------------------------------------------------------
 
 [functions]
