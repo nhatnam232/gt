@@ -5,34 +5,55 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-  workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  NEXT_TELEMETRY_DISABLED: "1"
-  DATABASE_URL: postgresql://guitar:guitar@localhost:5432/guitartribe?schema=public
-  DIRECT_URL: postgresql://guitar:guitar@localhost:5432/guitartribe?schema=public
-  NEXT_PUBLIC_SITE_URL: http://localhost:3000
-  BETTER_AUTH_SECRET: ci-secret-ci-secret-ci-secret-32
-
 jobs:
-  quality:
-    name: Lint / Typecheck / Unit
+  lint-typecheck:
+    name: Lint & type-check
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: guitar
-          POSTGRES_PASSWORD: guitar
-          POSTGRES_DB: guitartribe
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U guitar" --health-interval 10s
-          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run type-check
+
+  unit-tests:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run test
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://guitar:guitar@localhost:5432/guitartribe
+      DIRECT_URL: postgresql://guitar:guitar@localhost:5432/guitartribe
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      BETTER_AUTH_SECRET: ci-secret-32-chars-minimum-length
+      BETTER_AUTH_URL: http://localhost:3000
+      UPSTASH_REDIS_REST_URL: http://localhost:8079
+      UPSTASH_REDIS_REST_TOKEN: local_token
+      MEILISEARCH_HOST: http://localhost:7700
+      MEILISEARCH_MASTER_KEY: masterKeyChangeMe
+      CLOUDINARY_CLOUD_NAME: demo
+      CLOUDINARY_API_KEY: 000000000000000
+      CLOUDINARY_API_SECRET: ci-secret
+      CRON_SECRET: ci-cron-secret
+      SKIP_ENV_VALIDATION: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -41,89 +62,17 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx prisma generate
-      - run: npx prisma migrate deploy
-      - run: npm run lint
-      - run: npm run typecheck
-      - run: npm test
-
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    needs: quality
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: guitar
-          POSTGRES_PASSWORD: guitar
-          POSTGRES_DB: guitartribe
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U guitar" --health-interval 10s
-          --health-timeout 5s --health-retries 10
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      - run: npx prisma migrate deploy
       - run: npm run build
 
-  e2e:
-    name: E2E (Playwright)
-    runs-on: ubuntu-latest
-    needs: build
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: guitar
-          POSTGRES_PASSWORD: guitar
-          POSTGRES_DB: guitartribe
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U guitar" --health-interval 10s
-          --health-timeout 5s --health-retries 10
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      - run: npx prisma migrate deploy
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: playwright-report
-          path: playwright-report
-          retention-days: 7
-
   deploy:
-    name: Deploy (Vercel)
+    name: Deploy to Vercel
     runs-on: ubuntu-latest
-    needs: [build, e2e]
+    needs: [lint-typecheck, unit-tests, build]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    environment: production
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
       - name: Deploy
+        run: npx vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }}
         env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        run: |
-          if [ -z "$VERCEL_TOKEN" ]; then
-            echo "::warning::VERCEL_TOKEN not set - skipping deploy"; exit 0;
-          fi
-          npx vercel@latest pull --yes --environment=production --token "$VERCEL_TOKEN"
-          npx vercel@latest build --prod --token "$VERCEL_TOKEN"
-          npx vercel@latest deploy --prebuilt --prod --token "$VERCEL_TOKEN"

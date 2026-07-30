@@ -5,70 +5,86 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function slugify(input: string): string {
-  return input
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
+export function slugify(text: string): string {
+  return text
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 96)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s-]/g, "")
+    .trim()
+    .replace(/[\s_]+/g, "-")
+    .replace(/-+/g, "-")
 }
 
-const formatters = new Map<string, Intl.NumberFormat>()
-
-export function formatPrice(value: number | string | null | undefined, currency = "USD"): string {
-  if (value === null || value === undefined || value === "") return "Price on request"
-  const amount = typeof value === "string" ? Number(value) : value
-  if (!Number.isFinite(amount)) return "Price on request"
-  const key = `${currency}:${amount % 1 === 0}`
-  let fmt = formatters.get(key)
-  if (!fmt) {
-    fmt = new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency,
-      maximumFractionDigits: amount % 1 === 0 ? 0 : 2,
-    })
-    formatters.set(key, fmt)
-  }
-  return fmt.format(amount)
+export function formatPrice(amount: number, currency = "USD"): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount)
 }
 
-export function formatNumber(value: number): string {
-  return new Intl.NumberFormat("en-US").format(value)
+export function formatNumber(n: number): string {
+  return new Intl.NumberFormat("en-US").format(n)
 }
 
-export function formatDate(value: Date | string | null | undefined): string {
-  if (!value) return ""
-  const date = typeof value === "string" ? new Date(value) : value
-  return new Intl.DateTimeFormat("en-US", { year: "numeric", month: "short", day: "numeric" }).format(date)
-}
-
-export function decimalToNumber(value: unknown): number | null {
-  if (value === null || value === undefined) return null
-  const n = Number(value)
-  return Number.isFinite(n) ? n : null
-}
-
-export function truncate(text: string, max: number): string {
-  if (text.length <= max) return text
-  return `${text.slice(0, max - 1).trimEnd()}...`
-}
-
-export function absoluteUrl(path: string, base: string): string {
-  return new URL(path, base).toString()
-}
-
-export function unique<T>(items: T[]): T[] {
-  return Array.from(new Set(items))
-}
-
-export function chunk<T>(items: T[], size: number): T[][] {
-  const out: T[][] = []
-  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))
-  return out
+export function formatDate(dateString: string | Date, opts?: Intl.DateTimeFormatOptions): string {
+  const date = typeof dateString === "string" ? new Date(dateString) : dateString
+  return date.toLocaleDateString("en-US", opts ?? { year: "numeric", month: "long", day: "numeric" })
 }
 
 export function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max)
+}
+
+export function truncate(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text
+  return text.slice(0, maxLength) + "..."
+}
+
+export function chunk<T>(array: T[], size: number): T[][] {
+  const result: T[][] = []
+  for (let i = 0; i < array.length; i += size) {
+    result.push(array.slice(i, i + size))
+  }
+  return result
+}
+
+export function unique<T>(array: T[]): T[] {
+  return [...new Set(array)]
+}
+
+export function pick<T extends object, K extends keyof T>(obj: T, keys: K[]): Pick<T, K> {
+  return keys.reduce((acc, key) => ({ ...acc, [key]: obj[key] }), {} as Pick<T, K>)
+}
+
+export function omit<T extends object, K extends keyof T>(obj: T, keys: K[]): Omit<T, K> {
+  const result = { ...obj }
+  for (const key of keys) delete result[key]
+  return result as Omit<T, K>
+}
+
+export function groupBy<T>(array: T[], keyFn: (item: T) => string): Record<string, T[]> {
+  return array.reduce(
+    (acc, item) => {
+      const key = keyFn(item)
+      if (!acc[key]) acc[key] = []
+      acc[key].push(item)
+      return acc
+    },
+    {} as Record<string, T[]>,
+  )
+}
+
+export function parseIntSafe(value: string | null | undefined, fallback: number): number {
+  if (!value) return fallback
+  const n = parseInt(value, 10)
+  return Number.isNaN(n) ? fallback : n
+}
+
+export function parseFloatSafe(value: string | null | undefined, fallback: number): number {
+  if (!value) return fallback
+  const n = parseFloat(value)
+  return Number.isNaN(n) ? fallback : n
 }
