@@ -1,30 +1,29 @@
-import { NextResponse } from "next/server"
-import type { NextRequest } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
+
+const PROTECTED = ["/admin"]
+const AUTH_PAGES = ["/sign-in", "/sign-up"]
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Protect admin routes
-  if (pathname.startsWith("/admin")) {
-    const token = request.cookies.get("better-auth.session_token")?.value
-    if (!token) {
-      return NextResponse.redirect(new URL("/sign-in", request.url))
-    }
-  }
+  const isProtected = PROTECTED.some((p) => pathname.startsWith(p))
+  if (!isProtected) return NextResponse.next()
 
-  // Block cron endpoints from the public internet - only Vercel's cron service
-  // sends the CRON_SECRET header
-  if (pathname.startsWith("/api/cron")) {
-    const secret = request.headers.get("x-cron-secret")
-    const expected = process.env.CRON_SECRET
-    if (!expected || secret !== expected) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-    }
+  // Check for a session cookie (Better Auth uses `better-auth.session_token`)
+  const sessionCookie =
+    request.cookies.get("better-auth.session_token") ??
+    request.cookies.get("__Secure-better-auth.session_token")
+
+  if (!sessionCookie) {
+    const url = request.nextUrl.clone()
+    url.pathname = "/sign-in"
+    url.searchParams.set("callbackUrl", pathname)
+    return NextResponse.redirect(url)
   }
 
   return NextResponse.next()
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/api/cron/:path*"],
+  matcher: ["/admin/:path*"],
 }
